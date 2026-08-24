@@ -1026,6 +1026,8 @@ export default function App() {
       const l = await apiCreateList(gid, name);
       setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, lists: [...g.lists, mapList(l)] }));
       setAddListOpen(false);
+      setLid(l.id);
+      go("list");
       notify(`"${name}" created!`);
     } catch (e) {
       notify(e instanceof ApiError ? e.message : "Couldn't create the list.");

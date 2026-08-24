@@ -33,9 +33,9 @@ jobs:
         env:
           VITE_API_BASE_URL: https://listly-be.onrender.com
 
-      - run: npx cap sync android
-
       - run: chmod +x android/gradlew
+
+      - run: npx cap sync android
 
       - name: Build debug APK
         working-directory: android

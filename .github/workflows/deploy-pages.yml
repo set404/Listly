@@ -1,3 +1,4 @@
+# Rebuild with VITE_API_BASE_URL set
 name: Deploy to GitHub Pages
 
 on:

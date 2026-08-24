@@ -90,6 +90,8 @@ export class ApiError extends Error {
   }
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -98,7 +100,7 @@ async function tryRefresh(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       try {
-        const res = await fetch("/api/auth/refresh", {
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),
@@ -125,7 +127,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}, retry = true): 
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`/api${path}`, { ...opts, headers });
+  const res = await fetch(`${API_BASE}/api${path}`, { ...opts, headers });
 
   if (res.status === 401 && retry) {
     const refreshed = await tryRefresh();

@@ -25,7 +25,7 @@ import {
   regenerateInvite as apiRegenerateInvite,
   createList as apiCreateList,
   addItem as apiAddItem,
-  toggleItem as apiToggleItem,
+  updateItem as apiUpdateItem,
   logout as apiLogout,
 } from "./lib/api";
 
@@ -392,7 +392,24 @@ function ListsScreen({ group, onOpenList, onAddList, onSettings, onBack }: {
 
 // ─── List item row ────────────────────────────────────────────────────────────
 
-function ItemRow({ item, onToggle }: { item: ListItem; onToggle: () => void }) {
+function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: () => void; onEdit: (text: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.text);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function startEdit() {
+    setDraft(item.text);
+    setEditing(true);
+    requestAnimationFrame(() => inputRef.current?.select());
+  }
+
+  function commit() {
+    setEditing(false);
+    const t = draft.trim();
+    if (t && t !== item.text) onEdit(t);
+    else setDraft(item.text);
+  }
+
   return (
     <motion.div
       layout="position"
@@ -424,9 +441,27 @@ function ItemRow({ item, onToggle }: { item: ListItem; onToggle: () => void }) {
           </AnimatePresence>
         </div>
       </button>
-      <span className={`flex-1 text-sm leading-relaxed transition-all ${item.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-        {item.text}
-      </span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); }
+            if (e.key === "Escape") { setDraft(item.text); setEditing(false); }
+          }}
+          autoComplete="off"
+          className="flex-1 bg-transparent text-sm leading-relaxed text-foreground focus:outline-none"
+        />
+      ) : (
+        <span
+          onClick={startEdit}
+          className={`flex-1 text-sm leading-relaxed transition-all cursor-text ${item.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
+        >
+          {item.text}
+        </span>
+      )}
     </motion.div>
   );
 }
@@ -466,8 +501,9 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string) => void }) {
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onAdd }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
+  onEdit: (id: string, text: string) => void;
   onAdd: (text: string) => void;
 }) {
   const active = list.items.filter(i => !i.completed);
@@ -532,7 +568,7 @@ function ListScreen({ group, list, onBack, onToggle, onAdd }: {
           <LayoutGroup>
             <AnimatePresence initial={false}>
               {active.map(item => (
-                <ItemRow key={item.id} item={item} onToggle={() => onToggle(item.id)} />
+                <ItemRow key={item.id} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
               ))}
             </AnimatePresence>
 
@@ -566,7 +602,7 @@ function ListScreen({ group, list, onBack, onToggle, onAdd }: {
                 </motion.div>
               )}
               {done.map(item => (
-                <ItemRow key={item.id} item={item} onToggle={() => onToggle(item.id)} />
+                <ItemRow key={item.id} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
               ))}
             </AnimatePresence>
           </LayoutGroup>
@@ -1054,7 +1090,7 @@ export default function App() {
       }),
     }));
 
-    apiToggleItem(lid, id, nextCompleted).catch(() => {
+    apiUpdateItem(lid, id, { completed: nextCompleted }).catch(() => {
       setGroups(gs => gs.map(g => g.id !== gid ? g : {
         ...g,
         lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
@@ -1063,16 +1099,54 @@ export default function App() {
     });
   }
 
-  async function addItem(text: string) {
+  function editItemText(id: string, text: string) {
     if (!gid || !lid) return;
-    try {
-      const item = await apiAddItem(lid, text);
+    const list = cg?.lists.find(l => l.id === lid);
+    const prevItem = list?.items.find(i => i.id === id);
+    if (!prevItem || prevItem.text === text) return;
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : {
+      ...g,
+      lists: g.lists.map(l => l.id !== lid ? l : {
+        ...l,
+        items: l.items.map(i => i.id !== id ? i : { ...i, text }),
+      }),
+    }));
+
+    apiUpdateItem(lid, id, { text }).catch(() => {
       setGroups(gs => gs.map(g => g.id !== gid ? g : {
-        ...g, lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: [...l.items, mapItem(item)] }),
+        ...g,
+        lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
       }));
-    } catch {
-      notify("Couldn't add that item.");
-    }
+      notify("Couldn't update that item.");
+    });
+  }
+
+  function addItem(text: string) {
+    if (!gid || !lid) return;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticItem: ListItem = { id: tempId, text, completed: false };
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : {
+      ...g, lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: [...l.items, optimisticItem] }),
+    }));
+
+    apiAddItem(lid, text)
+      .then(item => {
+        setGroups(gs => gs.map(g => g.id !== gid ? g : {
+          ...g,
+          lists: g.lists.map(l => l.id !== lid ? l : {
+            ...l, items: l.items.map(i => i.id === tempId ? mapItem(item) : i),
+          }),
+        }));
+      })
+      .catch(() => {
+        setGroups(gs => gs.map(g => g.id !== gid ? g : {
+          ...g,
+          lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.filter(i => i.id !== tempId) }),
+        }));
+        notify("Couldn't add that item.");
+      });
   }
 
   async function regenCode() {
@@ -1193,7 +1267,7 @@ export default function App() {
                   {screen === "list" && cg && currentList && (
                     <ListScreen
                       group={cg} list={currentList} onBack={back}
-                      onToggle={toggleItem} onAdd={addItem}
+                      onToggle={toggleItem} onEdit={editItemText} onAdd={addItem}
                     />
                   )}
                   {screen === "members" && cg && (

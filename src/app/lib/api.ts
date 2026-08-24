@@ -260,9 +260,13 @@ export function addItem(listId: string, text: string) {
   });
 }
 
-export function toggleItem(listId: string, itemId: string, completed: boolean) {
+export function updateItem(
+  listId: string,
+  itemId: string,
+  changes: { completed?: boolean; text?: string },
+) {
   return apiFetch<ApiListItem>(`/lists/${listId}/items/${itemId}`, {
     method: "PATCH",
-    body: JSON.stringify({ completed }),
+    body: JSON.stringify(changes),
   });
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Capacitor } from "@capacitor/core";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import { format } from "date-fns";
 import {
@@ -1126,12 +1127,12 @@ export default function App() {
   // ── Render ──
   return (
     <div className={dark ? "dark" : ""} style={{ width: "100%", height: "100%" }}>
-      {/* Outer stage — dark bg shows the phone frame */}
-      <div className="w-full h-full bg-zinc-950 flex items-center justify-center">
+      {/* Outer stage — dark bg shows the phone frame in browser preview; full-bleed on native */}
+      <div className={Capacitor.isNativePlatform() ? "w-full h-full" : "w-full h-full bg-zinc-950 flex items-center justify-center"}>
         {/* Phone frame — position:relative so absolute overlays stay inside */}
         <div
           className="relative bg-background overflow-hidden"
-          style={{
+          style={Capacitor.isNativePlatform() ? { width: "100%", height: "100%" } : {
             width: "min(390px, 100%)",
             height: "min(844px, 100%)",
             borderRadius: "min(44px, 8%)",

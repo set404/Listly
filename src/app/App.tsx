@@ -37,6 +37,7 @@ type JoinStatus = "idle" | "loading" | "success" | "error";
 
 interface ListItem {
   id: string;
+  clientId: string;
   text: string;
   completed: boolean;
   completedAt?: number;
@@ -66,6 +67,7 @@ const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿"
 function mapItem(i: ApiListItem): ListItem {
   return {
     id: i.id,
+    clientId: i.id,
     text: i.text,
     completed: i.completed,
     completedAt: i.completedAt ? Date.parse(i.completedAt) : undefined,
@@ -568,7 +570,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd }: {
           <LayoutGroup>
             <AnimatePresence initial={false}>
               {active.map(item => (
-                <ItemRow key={item.id} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
+                <ItemRow key={item.clientId} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
               ))}
             </AnimatePresence>
 
@@ -602,7 +604,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd }: {
                 </motion.div>
               )}
               {done.map(item => (
-                <ItemRow key={item.id} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
+                <ItemRow key={item.clientId} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
               ))}
             </AnimatePresence>
           </LayoutGroup>
@@ -1125,7 +1127,7 @@ export default function App() {
   function addItem(text: string) {
     if (!gid || !lid) return;
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const optimisticItem: ListItem = { id: tempId, text, completed: false };
+    const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, completed: false };
 
     setGroups(gs => gs.map(g => g.id !== gid ? g : {
       ...g, lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: [...l.items, optimisticItem] }),
@@ -1136,7 +1138,8 @@ export default function App() {
         setGroups(gs => gs.map(g => g.id !== gid ? g : {
           ...g,
           lists: g.lists.map(l => l.id !== lid ? l : {
-            ...l, items: l.items.map(i => i.id === tempId ? mapItem(item) : i),
+            // keep clientId stable (= tempId) so the row doesn't remount and replay its enter animation
+            ...l, items: l.items.map(i => i.id === tempId ? { ...mapItem(item), clientId: tempId } : i),
           }),
         }));
       })

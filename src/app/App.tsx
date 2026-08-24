@@ -132,7 +132,7 @@ function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: Ta
 
 function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => void }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-background gap-5 px-8">
+    <div className="flex-1 flex flex-col items-center justify-center bg-background gap-5 px-8 h-full">
       <div className="w-16 h-16 rounded-[22px] bg-primary flex items-center justify-center shadow-xl shadow-primary/30">
         <ShoppingBag className="w-8 h-8 text-primary-foreground" />
       </div>

@@ -190,6 +190,13 @@ export function getMe() {
   return apiFetch<ApiUser>("/users/me");
 }
 
+export function registerPushToken(token: string, platform: string) {
+  return apiFetch<void>("/users/me/push-token", {
+    method: "POST",
+    body: JSON.stringify({ token, platform }),
+  });
+}
+
 // ─── Guest ──────────────────────────────────────────────────────────────────
 
 export function createGuest(fingerprint: string, name?: string) {

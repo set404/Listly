@@ -35,6 +35,7 @@ import {
   logout as apiLogout,
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
+import { initPushNotifications } from "./lib/push";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1523,6 +1524,12 @@ export default function App() {
   useEffect(() => {
     if (currentUser) connectSocket();
     else disconnectSocket();
+  }, [currentUser?.id]);
+
+  // Push notifications (native app only — no-ops on web for now). Re-run on
+  // every login so a device switching accounts re-points its token.
+  useEffect(() => {
+    if (currentUser) initPushNotifications().catch(() => {});
   }, [currentUser?.id]);
 
   useEffect(() => {

@@ -31,6 +31,7 @@ import {
   deleteItem as apiDeleteItem,
   logout as apiLogout,
 } from "./lib/api";
+import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1254,9 +1255,75 @@ export default function App() {
     }
     if (gid && !cg) {
       navigate("/groups", { replace: true });
+      return;
+    }
+    // The list itself can vanish out from under a viewer (someone else
+    // deleted it) via a real-time event, not just their own action.
+    if (gid && lid && !currentList) {
+      navigate(`/groups/${gid}`, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booting, currentUser, screen, gid, cg]);
+  }, [booting, currentUser, screen, gid, cg, lid, currentList]);
+
+  // ── Realtime ──
+  // One socket per session; connected whenever there's an active session and
+  // scoped to whichever group is currently open by joining/leaving its room.
+  useEffect(() => {
+    if (currentUser) connectSocket();
+    else disconnectSocket();
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser || !gid) return;
+    const socket = getSocket();
+
+    joinGroupRoom(gid);
+
+    function patchGroup(updater: (g: Group) => Group) {
+      setGroups(gs => gs.map(g => g.id !== gid ? g : updater(g)));
+    }
+
+    function onListCreated({ list }: { list: ApiList }) {
+      patchGroup(g => g.lists.some(l => l.id === list.id) ? g : { ...g, lists: [...g.lists, mapList(list)] });
+    }
+    function onListDeleted({ listId }: { listId: string }) {
+      patchGroup(g => ({ ...g, lists: g.lists.filter(l => l.id !== listId) }));
+    }
+    function onItemCreated({ listId, item }: { listId: string; item: ApiListItem }) {
+      patchGroup(g => ({
+        ...g,
+        lists: g.lists.map(l => l.id !== listId || l.items.some(i => i.id === item.id) ? l : { ...l, items: [...l.items, mapItem(item)] }),
+      }));
+    }
+    function onItemUpdated({ listId, item }: { listId: string; item: ApiListItem }) {
+      patchGroup(g => ({
+        ...g,
+        lists: g.lists.map(l => l.id !== listId ? l : { ...l, items: l.items.map(i => i.id === item.id ? mapItem(item) : i) }),
+      }));
+    }
+    function onItemDeleted({ listId, itemId }: { listId: string; itemId: string }) {
+      patchGroup(g => ({
+        ...g,
+        lists: g.lists.map(l => l.id !== listId ? l : { ...l, items: l.items.filter(i => i.id !== itemId) }),
+      }));
+    }
+
+    socket.on("list:created", onListCreated);
+    socket.on("list:deleted", onListDeleted);
+    socket.on("item:created", onItemCreated);
+    socket.on("item:updated", onItemUpdated);
+    socket.on("item:deleted", onItemDeleted);
+
+    return () => {
+      socket.off("list:created", onListCreated);
+      socket.off("list:deleted", onListDeleted);
+      socket.off("item:created", onItemCreated);
+      socket.off("item:updated", onItemUpdated);
+      socket.off("item:deleted", onItemDeleted);
+      leaveGroupRoom(gid);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, gid]);
 
   // ── Overlay visibility ──
   const [createOpen, setCreateOpen] = useState(false);

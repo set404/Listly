@@ -37,6 +37,8 @@ import {
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { initPushNotifications } from "./lib/push";
+import { Capacitor } from "@capacitor/core";
+import { App as CapApp } from "@capacitor/app";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1488,6 +1490,19 @@ export default function App() {
   function back() {
     navigate(-1);
   }
+
+  // Capacitor's Android bridge doesn't automatically map the hardware back
+  // button to in-app navigation — left unhandled, it just exits the
+  // activity from any screen. Pop one route (mirroring `back()`) when
+  // there's somewhere to go; only actually exit at the true root.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const subPromise = CapApp.addListener("backButton", () => {
+      if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+      else CapApp.exitApp();
+    });
+    return () => { subPromise.then(sub => sub.remove()); };
+  }, [navigate]);
 
   // ── Session bootstrap ──
   // Nobody is silently signed in: a fresh visitor lands on the login screen

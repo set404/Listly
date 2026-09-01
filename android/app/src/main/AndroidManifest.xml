@@ -33,6 +33,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Without these, FCM falls back to the full-color launcher icon,
+             which Android forces into a solid white silhouette (shows up as
+             a plain white circle in the status bar). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
     </application>
 
     <!-- Permissions -->

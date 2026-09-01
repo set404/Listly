@@ -24,6 +24,7 @@ import {
   leaveGroup as apiLeaveGroup,
   removeMember as apiRemoveMember,
   regenerateInvite as apiRegenerateInvite,
+  setGroupBonusImage as apiSetGroupBonusImage,
   createList as apiCreateList,
   deleteList as apiDeleteList,
   addItem as apiAddItem,
@@ -94,6 +95,7 @@ interface Group {
   members: Member[];
   lists: ListSummary[];
   inviteCode: string;
+  bonusImageUrl?: string;
   myRole: GroupRole;
 }
 
@@ -127,6 +129,7 @@ function mapGroup(g: ApiGroup, currentUserId: string): Group {
     name: g.name,
     emoji: g.emoji,
     inviteCode: g.inviteCode,
+    bonusImageUrl: g.bonusImageUrl ?? undefined,
     myRole: g.myRole,
     members: g.members.map(m => ({
       id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
@@ -219,6 +222,65 @@ function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => v
       ) : (
         <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
       )}
+    </div>
+  );
+}
+
+// ─── Bonus card ───────────────────────────────────────────────────────────────
+//
+// A group-owned image slot pinned to the bottom of the group's own page and
+// every one of its list pages. Any member can attach or replace it; it's
+// stored on the group and shows up everywhere that group's data is shown.
+
+function BonusCard({ imageUrl, onUpload }: { imageUrl?: string; onUpload: (dataUrl: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setUploading(true);
+    try {
+      onUpload(await compressImageToDataUrl(file));
+    } catch {
+      // Best-effort — leave the existing bonus card (or empty state) in place on failure.
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="px-4 pb-4 pt-1 flex-shrink-0">
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        aria-label={imageUrl ? "Change bonus card image" : "Add bonus card image"}
+        className={`relative w-full h-20 rounded-2xl overflow-hidden shadow-sm block text-left transition-opacity disabled:opacity-70 ${
+          imageUrl ? "border border-border" : "border-2 border-dashed border-border bg-muted/40"
+        }`}
+      >
+        {imageUrl ? (
+          <img src={imageUrl} alt="Bonus card" className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
+            <ImagePlus className="w-5 h-5" />
+            <span className="text-xs font-semibold">Add bonus card</span>
+          </div>
+        )}
+        {uploading && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <Loader2 className="w-5 h-5 text-white animate-spin" />
+          </div>
+        )}
+        {imageUrl && !uploading && (
+          <div className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center">
+            <ImagePlus className="w-3 h-3 text-white" />
+          </div>
+        )}
+      </button>
     </div>
   );
 }
@@ -411,9 +473,10 @@ function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
 
 // ─── Lists overview (a group's home screen) ────────────────────────────────────
 
-function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, onBack }: {
+function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, onBack, onSetBonusImage }: {
   group: Group; onOpenList: (listId: string) => void; onDeleteList: (listId: string, name: string) => void;
   onAddList: () => void; onSettings: () => void; onBack: () => void;
+  onSetBonusImage: (imageUrl: string) => void;
 }) {
   const lists = group.lists;
   const active = lists.length > 0 ? lists[lists.length - 1] : null;
@@ -497,6 +560,7 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
           </Btn>
         </div>
       )}
+      <BonusCard imageUrl={group.bonusImageUrl} onUpload={onSetBonusImage} />
     </div>
   );
 }
@@ -755,12 +819,13 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onSetBonusImage }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
   onSetImage: (id: string, imageUrl: string) => void;
+  onSetBonusImage: (imageUrl: string) => void;
 }) {
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -872,6 +937,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
           </LayoutGroup>
         </div>
       </div>
+      <BonusCard imageUrl={group.bonusImageUrl} onUpload={onSetBonusImage} />
     </div>
   );
 }
@@ -1576,6 +1642,18 @@ export default function App() {
     }
   }
 
+  function setBonusImage(imageUrl: string) {
+    if (!gid) return;
+    const prevImage = cg?.bonusImageUrl;
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusImageUrl: imageUrl }));
+
+    apiSetGroupBonusImage(gid, imageUrl).catch(() => {
+      setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusImageUrl: prevImage }));
+      notify("Couldn't save the bonus card.");
+    });
+  }
+
   async function confirmRemoveMember() {
     if (!gid || !removeTarget) return;
     const target = removeTarget;
@@ -1681,6 +1759,7 @@ export default function App() {
                       onAddList={() => gid && openAddList(gid)}
                       onSettings={() => navigate(`/groups/${gid}/settings`)}
                       onBack={back}
+                      onSetBonusImage={setBonusImage}
                     />
                   )}
                   {screen === "list" && cg && currentList && (
@@ -1688,6 +1767,7 @@ export default function App() {
                       group={cg} list={currentList} onBack={back}
                       onToggle={toggleItem} onEdit={editItemText} onAdd={addItem} onDeleteItem={deleteItemFn}
                       onSetImage={setItemImage}
+                      onSetBonusImage={setBonusImage}
                     />
                   )}
                   {screen === "members" && cg && (

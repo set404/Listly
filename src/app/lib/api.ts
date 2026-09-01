@@ -44,6 +44,7 @@ export interface ApiGroup {
   name: string;
   emoji: string;
   inviteCode: string;
+  bonusImageUrl: string | null;
   myRole: GroupRole;
   members: ApiMember[];
   lists: ApiList[];
@@ -245,6 +246,13 @@ export function removeMember(groupId: string, userId: string) {
 
 export function regenerateInvite(groupId: string) {
   return apiFetch<{ inviteCode: string }>(`/groups/${groupId}/invite/regenerate`, { method: "POST" });
+}
+
+export function setGroupBonusImage(groupId: string, imageUrl: string) {
+  return apiFetch<{ bonusImageUrl: string | null }>(`/groups/${groupId}/bonus-image`, {
+    method: "PATCH",
+    body: JSON.stringify({ imageUrl }),
+  });
 }
 
 export function createList(groupId: string, name: string) {

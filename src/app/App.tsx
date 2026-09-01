@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
   Settings, Users, LogOut, UserPlus, Home, UserRound,
-  Loader2, ShoppingBag, CheckCircle2, Trash2,
+  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, type Member, type ThemeMode } from "./components/ui-kit";
 import { LoginScreen } from "./components/LoginScreen";
@@ -74,6 +74,7 @@ interface ListItem {
   id: string;
   clientId: string;
   text: string;
+  imageUrl?: string;
   completed: boolean;
   completedAt?: number;
 }
@@ -104,6 +105,7 @@ function mapItem(i: ApiListItem): ListItem {
     id: i.id,
     clientId: i.id,
     text: i.text,
+    imageUrl: i.imageUrl ?? undefined,
     completed: i.completed,
     completedAt: i.completedAt ? Date.parse(i.completedAt) : undefined,
   };
@@ -130,6 +132,41 @@ function mapGroup(g: ApiGroup, currentUserId: string): Group {
     })),
     lists: g.lists.map(mapList),
   };
+}
+
+// ─── Item photo compression ────────────────────────────────────────────────
+//
+// Item photos travel as base64 data URLs in the JSON request body (no file
+// storage service is wired up), so they're downscaled and re-encoded as JPEG
+// client-side first to keep payloads small. Two passes: a normal-quality one,
+// then a smaller/lower-quality retry if the first still came out too big.
+
+async function encodeImage(file: File, maxDim: number, quality: number): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas not supported");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } finally {
+    bitmap.close();
+  }
+}
+
+const MAX_IMAGE_DATA_URL_LENGTH = 2_000_000; // stays comfortably under the server's cap
+
+async function compressImageToDataUrl(file: File): Promise<string> {
+  const first = await encodeImage(file, 1024, 0.75);
+  if (first.length <= MAX_IMAGE_DATA_URL_LENGTH) return first;
+  const second = await encodeImage(file, 720, 0.6);
+  if (second.length <= MAX_IMAGE_DATA_URL_LENGTH) return second;
+  throw new Error("Image too large even after compression");
 }
 
 // ─── Bottom tab bar ───────────────────────────────────────────────────────────
@@ -516,6 +553,13 @@ function ItemRow({ item, onToggle, onEdit, onDelete }: {
           </AnimatePresence>
         </div>
       </button>
+      {item.imageUrl && (
+        <img
+          src={item.imageUrl}
+          alt=""
+          className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-border"
+        />
+      )}
       {editing ? (
         <input
           ref={inputRef}
@@ -551,17 +595,35 @@ function ItemRow({ item, onToggle, onEdit, onDelete }: {
 
 // ─── Quick-add row (sits right after the last checkbox) ────────────────────────
 
-function QuickAddRow({ onAdd }: { onAdd: (text: string) => void }) {
+function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => void }) {
   const [text, setText] = useState("");
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function submit() {
     const t = text.trim();
     if (!t) return;
-    onAdd(t);
+    onAdd(t, imageDataUrl ?? undefined);
     setText("");
+    setImageDataUrl(null);
     // Stay focused so pressing Enter repeatedly keeps adding items.
     requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setCompressing(true);
+    try {
+      setImageDataUrl(await compressImageToDataUrl(file));
+    } catch {
+      // Best-effort attachment — a failed photo shouldn't block adding the item.
+    } finally {
+      setCompressing(false);
+    }
   }
 
   return (
@@ -578,6 +640,37 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string) => void }) {
         autoComplete="off"
         className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
       />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFile}
+        className="hidden"
+      />
+      {imageDataUrl ? (
+        <div className="relative flex-shrink-0">
+          <img src={imageDataUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-border" />
+          <button
+            onClick={() => setImageDataUrl(null)}
+            type="button"
+            aria-label="Remove photo"
+            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background flex items-center justify-center"
+          >
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+          disabled={compressing}
+          aria-label="Attach a photo"
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          {compressing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+        </button>
+      )}
     </div>
   );
 }
@@ -587,7 +680,7 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string) => void }) {
 function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
-  onAdd: (text: string) => void;
+  onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
 }) {
   const active = list.items.filter(i => !i.completed);
@@ -1248,16 +1341,16 @@ export default function App() {
     });
   }
 
-  function addItem(text: string) {
+  function addItem(text: string, imageUrl?: string) {
     if (!gid || !lid) return;
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, completed: false };
+    const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, imageUrl, completed: false };
 
     setGroups(gs => gs.map(g => g.id !== gid ? g : {
       ...g, lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: [...l.items, optimisticItem] }),
     }));
 
-    apiAddItem(lid, text)
+    apiAddItem(lid, text, imageUrl)
       .then(item => {
         setGroups(gs => gs.map(g => g.id !== gid ? g : {
           ...g,

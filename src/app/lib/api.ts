@@ -24,6 +24,7 @@ export interface ApiListItem {
   id: string;
   listId: string;
   text: string;
+  imageUrl: string | null;
   completed: boolean;
   completedAt: string | null;
   createdAt: string;
@@ -257,10 +258,10 @@ export function deleteList(groupId: string, listId: string) {
   return apiFetch<void>(`/groups/${groupId}/lists/${listId}`, { method: "DELETE" });
 }
 
-export function addItem(listId: string, text: string) {
+export function addItem(listId: string, text: string, imageUrl?: string) {
   return apiFetch<ApiListItem>(`/lists/${listId}/items`, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, imageUrl }),
   });
 }
 

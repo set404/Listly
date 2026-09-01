@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import type { TouchEvent as ReactTouchEvent, TouchList as ReactTouchList } from "react";
 import { useNavigate, useLocation, useNavigationType } from "react-router";
-import { motion, AnimatePresence, LayoutGroup } from "motion/react";
+import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate } from "motion/react";
 import { format } from "date-fns";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
@@ -357,6 +358,129 @@ function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promise<void>
   );
 }
 
+// ─── Zoomable lightbox image ────────────────────────────────────────────────
+//
+// Pinch-to-zoom (two-finger) and drag-to-pan once zoomed, plus double-tap to
+// toggle zoom, for touch devices. Mounted fresh each time a lightbox opens,
+// so zoom/pan state always starts back at rest.
+
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 4;
+const DOUBLE_TAP_ZOOM = 2.5;
+const DOUBLE_TAP_WINDOW_MS = 300;
+
+function clampNum(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
+}
+
+function touchDistance(touches: ReactTouchList) {
+  return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+}
+
+function ZoomableImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const scale = useMotionValue(1);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const gesture = useRef({
+    mode: "none" as "none" | "pinch" | "pan",
+    startDist: 0,
+    startScale: 1,
+    startX: 0,
+    startY: 0,
+    startPanX: 0,
+    startPanY: 0,
+    lastTapTime: 0,
+  });
+
+  function clampPan(nx: number, ny: number, s: number) {
+    const el = imgRef.current;
+    if (!el) return { x: nx, y: ny };
+    const maxX = (el.offsetWidth * (s - 1)) / 2;
+    const maxY = (el.offsetHeight * (s - 1)) / 2;
+    return { x: clampNum(nx, -maxX, maxX), y: clampNum(ny, -maxY, maxY) };
+  }
+
+  function reset() {
+    const spring = { type: "spring" as const, stiffness: 300, damping: 30 };
+    animate(scale, 1, spring);
+    animate(x, 0, spring);
+    animate(y, 0, spring);
+  }
+
+  function handleTouchStart(e: ReactTouchEvent<HTMLImageElement>) {
+    if (e.touches.length === 2) {
+      gesture.current.mode = "pinch";
+      gesture.current.startDist = touchDistance(e.touches);
+      gesture.current.startScale = scale.get();
+    } else if (e.touches.length === 1) {
+      const now = Date.now();
+      const isDoubleTap = now - gesture.current.lastTapTime < DOUBLE_TAP_WINDOW_MS;
+      gesture.current.lastTapTime = now;
+      if (isDoubleTap) {
+        gesture.current.mode = "none";
+        if (scale.get() > 1.05) reset();
+        else animate(scale, DOUBLE_TAP_ZOOM, { type: "spring", stiffness: 300, damping: 30 });
+        return;
+      }
+      gesture.current.mode = scale.get() > 1.02 ? "pan" : "none";
+      gesture.current.startX = e.touches[0].clientX;
+      gesture.current.startY = e.touches[0].clientY;
+      gesture.current.startPanX = x.get();
+      gesture.current.startPanY = y.get();
+    }
+  }
+
+  function handleTouchMove(e: ReactTouchEvent<HTMLImageElement>) {
+    if (gesture.current.mode === "pinch" && e.touches.length === 2) {
+      e.preventDefault();
+      const dist = touchDistance(e.touches);
+      const nextScale = clampNum(
+        gesture.current.startScale * (dist / gesture.current.startDist),
+        ZOOM_MIN, ZOOM_MAX,
+      );
+      scale.set(nextScale);
+      const clamped = clampPan(x.get(), y.get(), nextScale);
+      x.set(clamped.x);
+      y.set(clamped.y);
+    } else if (gesture.current.mode === "pan" && e.touches.length === 1) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - gesture.current.startX;
+      const dy = e.touches[0].clientY - gesture.current.startY;
+      const clamped = clampPan(gesture.current.startPanX + dx, gesture.current.startPanY + dy, scale.get());
+      x.set(clamped.x);
+      y.set(clamped.y);
+    }
+  }
+
+  function handleTouchEnd(e: ReactTouchEvent<HTMLImageElement>) {
+    if (e.touches.length === 1) {
+      // Pinch ended with one finger still down — carry on as a pan.
+      gesture.current.mode = scale.get() > 1.02 ? "pan" : "none";
+      gesture.current.startX = e.touches[0].clientX;
+      gesture.current.startY = e.touches[0].clientY;
+      gesture.current.startPanX = x.get();
+      gesture.current.startPanY = y.get();
+    } else if (e.touches.length === 0) {
+      gesture.current.mode = "none";
+    }
+  }
+
+  return (
+    <motion.img
+      ref={imgRef}
+      src={src}
+      alt={alt}
+      style={{ scale, x, y, touchAction: "none" }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={e => e.stopPropagation()}
+      className={className}
+    />
+  );
+}
+
 // ─── Bonus cards ────────────────────────────────────────────────────────────
 //
 // A group-owned, named set of images pinned to the bottom of the group's own
@@ -412,16 +536,20 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
             onClick={() => setViewing(null)}
             className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-6 gap-4"
           >
-            <motion.img
-              src={viewing.imageUrl}
-              alt={viewing.name}
+            <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.92, opacity: 0 }}
               transition={{ type: "spring", stiffness: 420, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              className="max-w-full max-h-[65vh] rounded-2xl object-contain"
-            />
+              className="max-w-full max-h-[65vh]"
+            >
+              <ZoomableImage
+                src={viewing.imageUrl}
+                alt={viewing.name}
+                className="max-w-full max-h-[65vh] rounded-2xl object-contain"
+              />
+            </motion.div>
             <p onClick={e => e.stopPropagation()} className="text-white font-semibold text-base text-center px-4">
               {viewing.name}
             </p>
@@ -882,16 +1010,20 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
             onClick={() => setLightboxOpen(false)}
             className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-6"
           >
-            <motion.img
-              src={item.imageUrl}
-              alt=""
+            <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.92, opacity: 0 }}
               transition={{ type: "spring", stiffness: 420, damping: 32 }}
               onClick={e => e.stopPropagation()}
-              className="max-w-full max-h-full rounded-2xl object-contain"
-            />
+              className="max-w-full max-h-full"
+            >
+              <ZoomableImage
+                src={item.imageUrl}
+                alt=""
+                className="max-w-full max-h-full rounded-2xl object-contain"
+              />
+            </motion.div>
             <button
               onClick={() => setLightboxOpen(false)}
               type="button"
@@ -1370,6 +1502,18 @@ export default function App() {
   const [guestLoading, setGuestLoading] = useState(false);
   const fingerprintRef = useRef<string>("");
   const routedInitialScreen = useRef(false);
+  // Count of in-flight addItem() submissions per "listId::text", still
+  // waiting on their REST response. Lets the realtime item:created handler
+  // recognize "this is my own submission echoing back" and skip rendering a
+  // second row for it — otherwise that row flashes on screen and then gets
+  // removed once addItem's own reconciliation runs. A count (not a
+  // boolean/Set) matters because adding the same text twice in a row means
+  // two submissions are in flight at once — one resolving must not clear
+  // the flag out from under the other still-pending one.
+  const pendingItemCountsRef = useRef<Map<string, number>>(new Map());
+  function pendingItemKey(listId: string, text: string) {
+    return `${listId}::${text}`;
+  }
 
   async function refreshGroups(userId: string) {
     const list = await apiListGroups();
@@ -1538,6 +1682,27 @@ export default function App() {
 
     joinGroupRoom(gid);
 
+    // Mobile disconnects constantly (backgrounding, screen lock, WiFi/
+    // cellular handoff) — Socket.IO reconnects the transport on its own,
+    // but the server has no memory of which rooms this new connection
+    // should be in, so rejoin explicitly every time "connect" fires (not
+    // just on mount) or live updates silently stop until a manual reload.
+    function onConnect() {
+      joinGroupRoom(gid);
+    }
+    socket.on("connect", onConnect);
+
+    // If the app was backgrounded long enough for the socket to actually
+    // die (not just idle), the browser/WebView won't always notice on its
+    // own until something touches the network — nudge a reconnect as soon
+    // as the app is foregrounded again.
+    function onVisible() {
+      if (document.visibilityState === "visible" && !socket.connected) {
+        socket.connect();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
     function patchGroup(updater: (g: Group) => Group) {
       setGroups(gs => gs.map(g => g.id !== gid ? g : updater(g)));
     }
@@ -1549,6 +1714,10 @@ export default function App() {
       patchGroup(g => ({ ...g, lists: g.lists.filter(l => l.id !== listId) }));
     }
     function onItemCreated({ listId, item }: { listId: string; item: ApiListItem }) {
+      // Our own addItem() echoing back over the socket before its REST
+      // response arrives — skip it here and let that response's own
+      // reconciliation fold it into the existing optimistic row instead.
+      if ((pendingItemCountsRef.current.get(pendingItemKey(listId, item.text)) ?? 0) > 0) return;
       patchGroup(g => ({
         ...g,
         lists: g.lists.map(l => l.id !== listId || l.items.some(i => i.id === item.id) ? l : { ...l, items: [...l.items, mapItem(item)] }),
@@ -1574,6 +1743,8 @@ export default function App() {
     socket.on("item:deleted", onItemDeleted);
 
     return () => {
+      socket.off("connect", onConnect);
+      document.removeEventListener("visibilitychange", onVisible);
       socket.off("list:created", onListCreated);
       socket.off("list:deleted", onListDeleted);
       socket.off("item:created", onItemCreated);
@@ -1671,7 +1842,14 @@ export default function App() {
     setCreatingList(true);
     try {
       const l = await apiCreateList(targetGroupId, name);
-      setGroups(gs => gs.map(g => g.id !== targetGroupId ? g : { ...g, lists: [...g.lists, mapList(l)] }));
+      // The realtime list:created echo can beat this response back (it
+      // travels over an already-open socket vs. a full HTTP round-trip) and
+      // add the list first — don't append a second copy if so.
+      setGroups(gs => gs.map(g => {
+        if (g.id !== targetGroupId) return g;
+        if (g.lists.some(existing => existing.id === l.id)) return g;
+        return { ...g, lists: [...g.lists, mapList(l)] };
+      }));
       setAddListOpen(false);
       navigate(`/groups/${targetGroupId}/list/${l.id}`);
       notify(`"${name}" created!`);
@@ -1834,21 +2012,43 @@ export default function App() {
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, imageUrl, completed: false };
 
+    // Mark this text as "pending" for this list so the realtime handler
+    // recognizes and drops the echo of this same submission instead of
+    // rendering a second row for it. Counted, not boolean, so adding the
+    // same text twice concurrently doesn't have one resolving clear the
+    // flag out from under the other still-pending submission.
+    const pendingKey = pendingItemKey(lid, text);
+    pendingItemCountsRef.current.set(pendingKey, (pendingItemCountsRef.current.get(pendingKey) ?? 0) + 1);
+
     setGroups(gs => gs.map(g => g.id !== gid ? g : {
       ...g, lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: [...l.items, optimisticItem] }),
     }));
 
+    function clearPending() {
+      const remaining = (pendingItemCountsRef.current.get(pendingKey) ?? 1) - 1;
+      if (remaining <= 0) pendingItemCountsRef.current.delete(pendingKey);
+      else pendingItemCountsRef.current.set(pendingKey, remaining);
+    }
+
     apiAddItem(lid, text, imageUrl)
       .then(item => {
+        clearPending();
         setGroups(gs => gs.map(g => g.id !== gid ? g : {
           ...g,
           lists: g.lists.map(l => l.id !== lid ? l : {
-            // keep clientId stable (= tempId) so the row doesn't remount and replay its enter animation
-            ...l, items: l.items.map(i => i.id === tempId ? { ...mapItem(item), clientId: tempId } : i),
+            ...l,
+            items: l.items
+              // In case the echo still slipped in ahead of us (e.g. another
+              // tab's list:created for the same list), drop that duplicate
+              // rather than keep both rows.
+              .filter(i => i.clientId === tempId || i.id !== item.id)
+              // keep clientId stable (= tempId) so the row doesn't remount and replay its enter animation
+              .map(i => i.clientId === tempId ? { ...mapItem(item), clientId: tempId } : i),
           }),
         }));
       })
       .catch(() => {
+        clearPending();
         setGroups(gs => gs.map(g => g.id !== gid ? g : {
           ...g,
           lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.filter(i => i.id !== tempId) }),

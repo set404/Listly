@@ -268,7 +268,7 @@ export function addItem(listId: string, text: string, imageUrl?: string) {
 export function updateItem(
   listId: string,
   itemId: string,
-  changes: { completed?: boolean; text?: string },
+  changes: { completed?: boolean; text?: string; imageUrl?: string },
 ) {
   return apiFetch<ApiListItem>(`/lists/${listId}/items/${itemId}`, {
     method: "PATCH",

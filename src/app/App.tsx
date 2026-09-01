@@ -502,12 +502,16 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
 
 // ─── List item row ────────────────────────────────────────────────────────────
 
-function ItemRow({ item, onToggle, onEdit, onDelete }: {
+function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
   item: ListItem; onToggle: () => void; onEdit: (text: string) => void; onDelete: () => void;
+  onSetImage: (imageUrl: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [attachingPhoto, setAttachingPhoto] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function startEdit() {
     setDraft(item.text);
@@ -520,6 +524,20 @@ function ItemRow({ item, onToggle, onEdit, onDelete }: {
     const t = draft.trim();
     if (t && t !== item.text) onEdit(t);
     else setDraft(item.text);
+  }
+
+  async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setAttachingPhoto(true);
+    try {
+      onSetImage(await compressImageToDataUrl(file));
+    } catch {
+      // Best-effort attachment — a failed photo isn't worth surfacing an error for.
+    } finally {
+      setAttachingPhoto(false);
+    }
   }
 
   return (
@@ -553,12 +571,39 @@ function ItemRow({ item, onToggle, onEdit, onDelete }: {
           </AnimatePresence>
         </div>
       </button>
-      {item.imageUrl && (
-        <img
-          src={item.imageUrl}
-          alt=""
-          className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-border"
-        />
+      {item.imageUrl ? (
+        <button
+          type="button"
+          onClick={() => setLightboxOpen(true)}
+          aria-label="View photo"
+          className="flex-shrink-0"
+        >
+          <img
+            src={item.imageUrl}
+            alt=""
+            className="w-9 h-9 rounded-lg object-cover border border-border"
+          />
+        </button>
+      ) : (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoPick}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={attachingPhoto}
+            aria-label="Add a photo"
+            className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {attachingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+          </button>
+        </>
       )}
       {editing ? (
         <input
@@ -589,6 +634,38 @@ function ItemRow({ item, onToggle, onEdit, onDelete }: {
       >
         <Trash2 className="w-3.5 h-3.5" />
       </button>
+
+      <AnimatePresence>
+        {lightboxOpen && item.imageUrl && (
+          <motion.div
+            key="lightbox"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxOpen(false)}
+            className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-6"
+          >
+            <motion.img
+              src={item.imageUrl}
+              alt=""
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              onClick={e => e.stopPropagation()}
+              className="max-w-full max-h-full rounded-2xl object-contain"
+            />
+            <button
+              onClick={() => setLightboxOpen(false)}
+              type="button"
+              aria-label="Close"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -677,11 +754,12 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
+  onSetImage: (id: string, imageUrl: string) => void;
 }) {
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -748,6 +826,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
                 <ItemRow
                   key={item.clientId} item={item} onToggle={() => onToggle(item.id)}
                   onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
+                  onSetImage={url => onSetImage(item.id, url)}
                 />
               ))}
             </AnimatePresence>
@@ -785,6 +864,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
                 <ItemRow
                   key={item.clientId} item={item} onToggle={() => onToggle(item.id)}
                   onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
+                  onSetImage={url => onSetImage(item.id, url)}
                 />
               ))}
             </AnimatePresence>
@@ -1341,6 +1421,29 @@ export default function App() {
     });
   }
 
+  function setItemImage(id: string, imageUrl: string) {
+    if (!gid || !lid) return;
+    const list = cg?.lists.find(l => l.id === lid);
+    const prevItem = list?.items.find(i => i.id === id);
+    if (!prevItem) return;
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : {
+      ...g,
+      lists: g.lists.map(l => l.id !== lid ? l : {
+        ...l,
+        items: l.items.map(i => i.id !== id ? i : { ...i, imageUrl }),
+      }),
+    }));
+
+    apiUpdateItem(lid, id, { imageUrl }).catch(() => {
+      setGroups(gs => gs.map(g => g.id !== gid ? g : {
+        ...g,
+        lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
+      }));
+      notify("Couldn't add that photo.");
+    });
+  }
+
   function addItem(text: string, imageUrl?: string) {
     if (!gid || !lid) return;
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1517,6 +1620,7 @@ export default function App() {
                     <ListScreen
                       group={cg} list={currentList} onBack={back}
                       onToggle={toggleItem} onEdit={editItemText} onAdd={addItem} onDeleteItem={deleteItemFn}
+                      onSetImage={setItemImage}
                     />
                   )}
                   {screen === "members" && cg && (

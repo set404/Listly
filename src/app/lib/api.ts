@@ -253,6 +253,10 @@ export function createList(groupId: string, name: string) {
   });
 }
 
+export function deleteList(groupId: string, listId: string) {
+  return apiFetch<void>(`/groups/${groupId}/lists/${listId}`, { method: "DELETE" });
+}
+
 export function addItem(listId: string, text: string) {
   return apiFetch<ApiListItem>(`/lists/${listId}/items`, {
     method: "POST",
@@ -269,4 +273,8 @@ export function updateItem(
     method: "PATCH",
     body: JSON.stringify(changes),
   });
+}
+
+export function deleteItem(listId: string, itemId: string) {
+  return apiFetch<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" });
 }

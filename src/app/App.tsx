@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation, useNavigationType } from "react-router";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import { format } from "date-fns";
 import {
@@ -24,16 +25,50 @@ import {
   removeMember as apiRemoveMember,
   regenerateInvite as apiRegenerateInvite,
   createList as apiCreateList,
+  deleteList as apiDeleteList,
   addItem as apiAddItem,
   updateItem as apiUpdateItem,
+  deleteItem as apiDeleteItem,
   logout as apiLogout,
 } from "./lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "login" | "register" | "groups" | "profile" | "lists" | "list" | "settings" | "members" | "invite";
+type Screen = "login" | "register" | "groups" | "profile" | "lists" | "list" | "settings" | "members" | "invite" | "unknown";
 type TabScreen = "groups" | "profile";
 type JoinStatus = "idle" | "loading" | "success" | "error";
+
+// ─── Route parsing ─────────────────────────────────────────────────────────
+//
+// The app has no server behind it (it's shipped as a static bundle, and as a
+// Capacitor app on Android), so we route entirely on the client with
+// HashRouter. Every screen change pushes a real history entry so the browser
+// / hardware back button walks backward through actual navigation instead of
+// leaving the whole app on a single route.
+
+interface RouteMatch {
+  screen: Screen;
+  groupId: string | null;
+  listId: string | null;
+}
+
+function parseRoute(pathname: string): RouteMatch {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] === "login") return { screen: "login", groupId: null, listId: null };
+  if (parts[0] === "register") return { screen: "register", groupId: null, listId: null };
+  if (parts[0] === "profile") return { screen: "profile", groupId: null, listId: null };
+  if (parts[0] === "groups") {
+    if (!parts[1]) return { screen: "groups", groupId: null, listId: null };
+    const groupId = parts[1];
+    const sub = parts[2];
+    if (!sub) return { screen: "lists", groupId, listId: null };
+    if (sub === "list" && parts[3]) return { screen: "list", groupId, listId: parts[3] };
+    if (sub === "settings") return { screen: "settings", groupId, listId: null };
+    if (sub === "members") return { screen: "members", groupId, listId: null };
+    if (sub === "invite") return { screen: "invite", groupId, listId: null };
+  }
+  return { screen: "unknown", groupId: null, listId: null };
+}
 
 interface ListItem {
   id: string;
@@ -152,8 +187,9 @@ function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => v
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
-function Groups({ groups, onOpen, onCreate, onJoin }: {
-  groups: Group[]; onOpen: (id: string) => void; onCreate: () => void; onJoin: () => void;
+function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin }: {
+  groups: Group[]; onOpen: (id: string) => void; onOpenActiveList: (groupId: string, listId: string) => void;
+  onAddList: (groupId: string) => void; onCreate: () => void; onJoin: () => void;
 }) {
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
@@ -198,15 +234,19 @@ function Groups({ groups, onOpen, onCreate, onJoin }: {
               const allItems = g.lists.flatMap(l => l.items);
               const activeCount = allItems.filter(item => !item.completed).length;
               const allDone = allItems.length > 0 && activeCount === 0;
+              const activeList = g.lists.length > 0 ? g.lists[g.lists.length - 1] : null;
               return (
-                <motion.button
+                <motion.div
                   key={g.id}
                   layout
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onOpen(g.id)}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(g.id); } }}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.22 }}
-                  className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3.5 hover:bg-muted/20 active:scale-[0.985] transition-all text-left shadow-sm"
+                  className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3.5 hover:bg-muted/20 active:scale-[0.985] transition-all text-left shadow-sm cursor-pointer"
                 >
                   <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl flex-shrink-0">
                     {g.emoji}
@@ -241,8 +281,23 @@ function Groups({ groups, onOpen, onCreate, onJoin }: {
                       )}
                     </div>
                   </div>
+                  {activeList && (
+                    <button
+                      onClick={e => { e.stopPropagation(); onOpenActiveList(g.id, activeList.id); }}
+                      className="h-8 px-3 rounded-lg text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 active:scale-95 transition-all flex-shrink-0"
+                    >
+                      Active list
+                    </button>
+                  )}
+                  <button
+                    onClick={e => { e.stopPropagation(); onAddList(g.id); }}
+                    aria-label={`Add a list to ${g.name}`}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 transition-all flex-shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                   <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                </motion.button>
+                </motion.div>
               );
             })}
           </div>
@@ -254,8 +309,8 @@ function Groups({ groups, onOpen, onCreate, onJoin }: {
 
 // ─── List card (used for both the featured active list and the rest) ─────────
 
-function ListCard({ list, featured, delay = 0, onClick }: {
-  list: ListSummary; featured?: boolean; delay?: number; onClick: () => void;
+function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
+  list: ListSummary; featured?: boolean; delay?: number; onClick: () => void; onDelete: () => void;
 }) {
   const activeCount = list.items.filter(i => !i.completed).length;
   const doneCount = list.items.length - activeCount;
@@ -263,13 +318,16 @@ function ListCard({ list, featured, delay = 0, onClick }: {
   const pct = list.items.length === 0 ? 0 : (doneCount / list.items.length) * 100;
 
   return (
-    <motion.button
+    <motion.div
       layout
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.22 }}
-      className={`w-full text-left rounded-2xl p-4 transition-all active:scale-[0.985] ${
+      className={`w-full text-left rounded-2xl p-4 transition-all active:scale-[0.985] cursor-pointer ${
         featured
           ? "bg-primary/8 border-2 border-primary/30 shadow-sm"
           : "bg-card border border-border hover:bg-muted/20 shadow-sm"
@@ -295,6 +353,13 @@ function ListCard({ list, featured, delay = 0, onClick }: {
             )}
           </div>
         </div>
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          aria-label={`Delete ${list.name}`}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-500/10 hover:text-red-500 active:scale-95 transition-all flex-shrink-0"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
         <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
       </div>
       {list.items.length > 0 && (
@@ -302,15 +367,15 @@ function ListCard({ list, featured, delay = 0, onClick }: {
           <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
         </div>
       )}
-    </motion.button>
+    </motion.div>
   );
 }
 
 // ─── Lists overview (a group's home screen) ────────────────────────────────────
 
-function ListsScreen({ group, onOpenList, onAddList, onSettings, onBack }: {
-  group: Group; onOpenList: (listId: string) => void; onAddList: () => void;
-  onSettings: () => void; onBack: () => void;
+function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, onBack }: {
+  group: Group; onOpenList: (listId: string) => void; onDeleteList: (listId: string, name: string) => void;
+  onAddList: () => void; onSettings: () => void; onBack: () => void;
 }) {
   const lists = group.lists;
   const active = lists.length > 0 ? lists[lists.length - 1] : null;
@@ -363,7 +428,10 @@ function ListsScreen({ group, onOpenList, onAddList, onSettings, onBack }: {
             {active && (
               <div>
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">Active list</p>
-                <ListCard list={active} featured onClick={() => onOpenList(active.id)} />
+                <ListCard
+                  list={active} featured onClick={() => onOpenList(active.id)}
+                  onDelete={() => onDeleteList(active.id, active.name)}
+                />
               </div>
             )}
             {others.length > 0 && (
@@ -371,7 +439,10 @@ function ListsScreen({ group, onOpenList, onAddList, onSettings, onBack }: {
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">All lists</p>
                 <div className="space-y-3">
                   {others.map((l, i) => (
-                    <ListCard key={l.id} list={l} delay={i * 0.05} onClick={() => onOpenList(l.id)} />
+                    <ListCard
+                      key={l.id} list={l} delay={i * 0.05} onClick={() => onOpenList(l.id)}
+                      onDelete={() => onDeleteList(l.id, l.name)}
+                    />
                   ))}
                 </div>
               </div>
@@ -394,7 +465,9 @@ function ListsScreen({ group, onOpenList, onAddList, onSettings, onBack }: {
 
 // ─── List item row ────────────────────────────────────────────────────────────
 
-function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: () => void; onEdit: (text: string) => void }) {
+function ItemRow({ item, onToggle, onEdit, onDelete }: {
+  item: ListItem; onToggle: () => void; onEdit: (text: string) => void; onDelete: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -464,6 +537,14 @@ function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: () => v
           {item.text}
         </span>
       )}
+      <button
+        onClick={onDelete}
+        type="button"
+        aria-label={`Delete ${item.text}`}
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
     </motion.div>
   );
 }
@@ -503,10 +584,11 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string) => void }) {
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string) => void;
+  onDeleteItem: (id: string) => void;
 }) {
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -570,7 +652,10 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd }: {
           <LayoutGroup>
             <AnimatePresence initial={false}>
               {active.map(item => (
-                <ItemRow key={item.clientId} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
+                <ItemRow
+                  key={item.clientId} item={item} onToggle={() => onToggle(item.id)}
+                  onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
+                />
               ))}
             </AnimatePresence>
 
@@ -604,7 +689,10 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd }: {
                 </motion.div>
               )}
               {done.map(item => (
-                <ItemRow key={item.clientId} item={item} onToggle={() => onToggle(item.id)} onEdit={t => onEdit(item.id, t)} />
+                <ItemRow
+                  key={item.clientId} item={item} onToggle={() => onToggle(item.id)}
+                  onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
+                />
               ))}
             </AnimatePresence>
           </LayoutGroup>
@@ -842,20 +930,19 @@ export default function App() {
   const dark = themeMode === "dark" || (themeMode === "system" && sysDark);
 
   // ── Navigation ──
-  const [screen, setScreen] = useState<Screen>("login");
-  const [hist, setHist] = useState<Screen[]>([]);
-  const [dir, setDir] = useState(1);
+  // Real routes (via react-router's HashRouter) drive the current screen, so
+  // the browser / Android hardware back button walks backward through actual
+  // history entries instead of the whole app living on one route.
+  const navigate = useNavigate();
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const dir = navigationType === "POP" ? -1 : 1;
+  const match = parseRoute(location.pathname);
+  const screen = match.screen;
+  const canGoBack = (window.history.state?.idx ?? 0) > 0;
 
-  function go(s: Screen) {
-    setDir(1);
-    setHist(h => [...h, screen]);
-    setScreen(s);
-  }
   function back() {
-    if (!hist.length) return;
-    setDir(-1);
-    setScreen(hist[hist.length - 1]);
-    setHist(h => h.slice(0, -1));
+    navigate(-1);
   }
 
   // ── Session bootstrap ──
@@ -881,8 +968,7 @@ export default function App() {
   function enterApp(user: ApiUser) {
     setCurrentUser(user);
     routedInitialScreen.current = true;
-    setDir(1); setHist([]);
-    setScreen("groups");
+    navigate("/groups", { replace: true });
   }
 
   async function runBootstrap() {
@@ -900,7 +986,7 @@ export default function App() {
         fingerprintRef.current = result.fingerprint;
         if (!routedInitialScreen.current) {
           routedInitialScreen.current = true;
-          setScreen("login");
+          navigate("/login", { replace: true });
         }
         setBooting(false);
         return;
@@ -960,7 +1046,7 @@ export default function App() {
       setRecovery(null);
       setRecoveryLoading(false);
       routedInitialScreen.current = true;
-      setDir(1); setHist([]); setScreen("login");
+      navigate("/login", { replace: true });
     }
   }
 
@@ -972,12 +1058,32 @@ export default function App() {
 
   // ── Groups state ──
   const [groups, setGroups] = useState<Group[]>([]);
-  const [gid, setGid] = useState<string | null>(null);
-  const [lid, setLid] = useState<string | null>(null);
+  const gid = match.groupId;
+  const lid = match.listId;
   const cg = groups.find(g => g.id === gid) ?? null;
   const currentList = cg?.lists.find(l => l.id === lid) ?? null;
   const isAdmin = cg?.myRole === "ADMIN";
   const showTabBar = screen === "groups" || screen === "profile";
+
+  // ── Route guard ──
+  // Keep the URL honest: bounce signed-out visitors off protected routes,
+  // signed-in ones off the auth screens, and drop dead group links back home.
+  useEffect(() => {
+    if (booting) return;
+    const isAuthScreen = screen === "login" || screen === "register";
+    if (!currentUser) {
+      if (!isAuthScreen) navigate("/login", { replace: true });
+      return;
+    }
+    if (isAuthScreen || screen === "unknown") {
+      navigate("/groups", { replace: true });
+      return;
+    }
+    if (gid && !cg) {
+      navigate("/groups", { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booting, currentUser, screen, gid, cg]);
 
   // ── Overlay visibility ──
   const [createOpen, setCreateOpen] = useState(false);
@@ -1048,29 +1154,47 @@ export default function App() {
 
   // ── Lists ──
   const [addListOpen, setAddListOpen] = useState(false);
+  const [addListGroupId, setAddListGroupId] = useState<string | null>(null);
   const [newListName, setNewListName] = useState("");
   const [creatingList, setCreatingList] = useState(false);
+  const [deleteListTarget, setDeleteListTarget] = useState<{ groupId: string; listId: string; name: string } | null>(null);
 
-  function openAddList() {
+  function openAddList(groupId: string) {
+    setAddListGroupId(groupId);
     setNewListName(`List ${format(new Date(), "MMM d")}`);
     setAddListOpen(true);
   }
 
   async function doCreateList() {
     const name = newListName.trim();
-    if (!gid || !name) return;
+    const targetGroupId = addListGroupId;
+    if (!targetGroupId || !name) return;
     setCreatingList(true);
     try {
-      const l = await apiCreateList(gid, name);
-      setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, lists: [...g.lists, mapList(l)] }));
+      const l = await apiCreateList(targetGroupId, name);
+      setGroups(gs => gs.map(g => g.id !== targetGroupId ? g : { ...g, lists: [...g.lists, mapList(l)] }));
       setAddListOpen(false);
-      setLid(l.id);
-      go("list");
+      navigate(`/groups/${targetGroupId}/list/${l.id}`);
       notify(`"${name}" created!`);
     } catch (e) {
       notify(e instanceof ApiError ? e.message : "Couldn't create the list.");
     } finally {
       setCreatingList(false);
+    }
+  }
+
+  async function confirmDeleteList() {
+    if (!deleteListTarget) return;
+    const { groupId, listId, name } = deleteListTarget;
+    try {
+      await apiDeleteList(groupId, listId);
+      setGroups(gs => gs.map(g => g.id !== groupId ? g : { ...g, lists: g.lists.filter(l => l.id !== listId) }));
+      notify(`"${name}" deleted.`);
+      if (lid === listId) navigate(`/groups/${groupId}`, { replace: true });
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : "Couldn't delete the list.");
+    } finally {
+      setDeleteListTarget(null);
     }
   }
 
@@ -1152,6 +1276,32 @@ export default function App() {
       });
   }
 
+  function deleteItemFn(id: string) {
+    if (!gid || !lid) return;
+    const list = cg?.lists.find(l => l.id === lid);
+    const idx = list?.items.findIndex(i => i.id === id) ?? -1;
+    if (!list || idx === -1) return;
+    const prevItem = list.items[idx];
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : {
+      ...g,
+      lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.filter(i => i.id !== id) }),
+    }));
+
+    apiDeleteItem(lid, id).catch(() => {
+      setGroups(gs => gs.map(g => g.id !== gid ? g : {
+        ...g,
+        lists: g.lists.map(l => {
+          if (l.id !== lid) return l;
+          const items = [...l.items];
+          items.splice(idx, 0, prevItem);
+          return { ...l, items };
+        }),
+      }));
+      notify("Couldn't delete that item.");
+    });
+  }
+
   async function regenCode() {
     if (!gid) return;
     try {
@@ -1187,7 +1337,8 @@ export default function App() {
     } catch (e) {
       notify(e instanceof ApiError ? e.message : "Couldn't leave the group.");
     } finally {
-      setLeaveOpen(false); setGid(null); setLid(null); setDir(-1); setHist([]); setScreen("groups");
+      setLeaveOpen(false);
+      navigate("/groups", { replace: true });
     }
   }
 
@@ -1196,8 +1347,7 @@ export default function App() {
     await apiLogout().catch(() => {});
     setCurrentUser(null);
     setGroups([]);
-    setGid(null);
-    setDir(-1); setHist([]); setScreen("login");
+    navigate("/login", { replace: true });
     routedInitialScreen.current = false;
     runBootstrap();
   }
@@ -1219,7 +1369,7 @@ export default function App() {
               {/* Screen layer */}
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
-                  key={screen}
+                  key={location.pathname}
                   className="absolute inset-0 flex flex-col overflow-hidden"
                   style={{ borderRadius: "inherit", paddingBottom: showTabBar ? NAV_HEIGHT : 0 }}
                   initial={{ opacity: 0, x: dir * 36 }}
@@ -1229,10 +1379,10 @@ export default function App() {
                 >
                   {screen === "login" && (
                     <LoginScreen
-                      showBack={hist.length > 0}
+                      showBack={canGoBack}
                       onBack={back}
                       onSuccess={handleAuthSuccess}
-                      onGoRegister={() => go("register")}
+                      onGoRegister={() => navigate("/register")}
                       onContinueAsGuest={handleContinueAsGuest}
                       guestLoading={guestLoading}
                     />
@@ -1241,13 +1391,15 @@ export default function App() {
                     <RegisterScreen
                       onBack={back}
                       onSuccess={handleAuthSuccess}
-                      onGoLogin={() => go("login")}
+                      onGoLogin={() => navigate("/login")}
                     />
                   )}
                   {screen === "groups" && (
                     <Groups
                       groups={groups}
-                      onOpen={id => { setGid(id); setLid(null); go("lists"); }}
+                      onOpen={id => navigate(`/groups/${id}`)}
+                      onOpenActiveList={(groupId, listId) => navigate(`/groups/${groupId}/list/${listId}`)}
+                      onAddList={openAddList}
                       onCreate={() => setCreateOpen(true)}
                       onJoin={() => setJoinOpen(true)}
                     />
@@ -1255,22 +1407,23 @@ export default function App() {
                   {screen === "profile" && currentUser && (
                     <ProfileScreen
                       user={currentUser} theme={themeMode} onTheme={setThemeMode}
-                      onGoLogin={() => go("login")} onLogout={() => setLogoutOpen(true)}
+                      onGoLogin={() => navigate("/login")} onLogout={() => setLogoutOpen(true)}
                     />
                   )}
                   {screen === "lists" && cg && (
                     <ListsScreen
                       group={cg}
-                      onOpenList={id => { setLid(id); go("list"); }}
-                      onAddList={openAddList}
-                      onSettings={() => go("settings")}
+                      onOpenList={id => navigate(`/groups/${gid}/list/${id}`)}
+                      onDeleteList={(listId, name) => gid && setDeleteListTarget({ groupId: gid, listId, name })}
+                      onAddList={() => gid && openAddList(gid)}
+                      onSettings={() => navigate(`/groups/${gid}/settings`)}
                       onBack={back}
                     />
                   )}
                   {screen === "list" && cg && currentList && (
                     <ListScreen
                       group={cg} list={currentList} onBack={back}
-                      onToggle={toggleItem} onEdit={editItemText} onAdd={addItem}
+                      onToggle={toggleItem} onEdit={editItemText} onAdd={addItem} onDeleteItem={deleteItemFn}
                     />
                   )}
                   {screen === "members" && cg && (
@@ -1283,7 +1436,7 @@ export default function App() {
                   {screen === "settings" && cg && (
                     <SettingsScreen
                       group={cg} onBack={back}
-                      onMembers={() => go("members")} onInvite={() => go("invite")}
+                      onMembers={() => navigate(`/groups/${gid}/members`)} onInvite={() => navigate(`/groups/${gid}/invite`)}
                       onLeave={() => setLeaveOpen(true)}
                     />
                   )}
@@ -1293,7 +1446,7 @@ export default function App() {
               {showTabBar && (
                 <BottomNav
                   active={screen === "profile" ? "profile" : "groups"}
-                  onChange={tab => { setDir(1); setHist([]); setScreen(tab); }}
+                  onChange={tab => navigate(`/${tab}`)}
                 />
               )}
 
@@ -1408,6 +1561,13 @@ export default function App() {
                 title="Remove member?"
                 body={`${removeTarget?.name} will lose access to "${cg?.name}" and its shared list.`}
                 cta="Remove" danger onConfirm={confirmRemoveMember}
+              />
+
+              <Confirm
+                open={!!deleteListTarget} onClose={() => setDeleteListTarget(null)}
+                title="Delete list?"
+                body={`"${deleteListTarget?.name}" and all of its items will be permanently deleted.`}
+                cta="Delete list" danger onConfirm={confirmDeleteList}
               />
 
               <Confirm

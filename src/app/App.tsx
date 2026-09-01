@@ -17,14 +17,15 @@ import {
   type RecoveryCandidate,
 } from "./lib/auth";
 import {
-  ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type GroupRole,
+  ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
   listGroups as apiListGroups,
   createGroup as apiCreateGroup,
   joinGroup as apiJoinGroup,
   leaveGroup as apiLeaveGroup,
   removeMember as apiRemoveMember,
   regenerateInvite as apiRegenerateInvite,
-  setGroupBonusImage as apiSetGroupBonusImage,
+  addBonusCard as apiAddBonusCard,
+  deleteBonusCard as apiDeleteBonusCard,
   createList as apiCreateList,
   deleteList as apiDeleteList,
   addItem as apiAddItem,
@@ -88,6 +89,12 @@ interface ListSummary {
   items: ListItem[];
 }
 
+interface BonusCardVM {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
 interface Group {
   id: string;
   name: string;
@@ -95,7 +102,7 @@ interface Group {
   members: Member[];
   lists: ListSummary[];
   inviteCode: string;
-  bonusImageUrl?: string;
+  bonusCards: BonusCardVM[];
   myRole: GroupRole;
 }
 
@@ -123,13 +130,17 @@ function mapList(l: ApiList): ListSummary {
   };
 }
 
+function mapBonusCard(c: ApiBonusCard): BonusCardVM {
+  return { id: c.id, name: c.name, imageUrl: c.imageUrl };
+}
+
 function mapGroup(g: ApiGroup, currentUserId: string): Group {
   return {
     id: g.id,
     name: g.name,
     emoji: g.emoji,
     inviteCode: g.inviteCode,
-    bonusImageUrl: g.bonusImageUrl ?? undefined,
+    bonusCards: g.bonusCards.map(mapBonusCard),
     myRole: g.myRole,
     members: g.members.map(m => ({
       id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
@@ -226,61 +237,96 @@ function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => v
   );
 }
 
-// ─── Bonus card ───────────────────────────────────────────────────────────────
+// ─── Bonus cards ────────────────────────────────────────────────────────────
 //
-// A group-owned image slot pinned to the bottom of the group's own page and
-// every one of its list pages. Any member can attach or replace it; it's
-// stored on the group and shows up everywhere that group's data is shown.
+// A group-owned, named set of images pinned to the bottom of the group's own
+// page and every one of its list pages. Any member can add or remove one;
+// they're stored on the group and show up everywhere that group's data is
+// shown. Tapping a card opens it full-size with the option to delete it.
 
-function BonusCard({ imageUrl, onUpload }: { imageUrl?: string; onUpload: (dataUrl: string) => void }) {
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file
-    if (!file) return;
-    setUploading(true);
-    try {
-      onUpload(await compressImageToDataUrl(file));
-    } catch {
-      // Best-effort — leave the existing bonus card (or empty state) in place on failure.
-    } finally {
-      setUploading(false);
-    }
-  }
+function BonusCardRow({ cards, onAdd, onDelete }: {
+  cards: BonusCardVM[]; onAdd: () => void; onDelete: (cardId: string) => void;
+}) {
+  const [viewing, setViewing] = useState<BonusCardVM | null>(null);
 
   return (
     <div className="px-4 pb-4 pt-1 flex-shrink-0">
-      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-        aria-label={imageUrl ? "Change bonus card image" : "Add bonus card image"}
-        className={`relative w-full h-20 rounded-2xl overflow-hidden shadow-sm block text-left transition-opacity disabled:opacity-70 ${
-          imageUrl ? "border border-border" : "border-2 border-dashed border-border bg-muted/40"
-        }`}
-      >
-        {imageUrl ? (
-          <img src={imageUrl} alt="Bonus card" className="absolute inset-0 w-full h-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
-            <ImagePlus className="w-5 h-5" />
-            <span className="text-xs font-semibold">Add bonus card</span>
-          </div>
+      <div className="flex gap-2.5 overflow-x-auto">
+        {cards.map(card => (
+          <button
+            key={card.id}
+            type="button"
+            onClick={() => setViewing(card)}
+            className="flex-shrink-0 w-20 text-center"
+          >
+            <div className="w-20 h-20 rounded-2xl overflow-hidden border border-border shadow-sm">
+              <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover" />
+            </div>
+            <p className="text-[11px] font-medium text-muted-foreground mt-1 truncate">{card.name}</p>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label="Add bonus card"
+          className="flex-shrink-0 w-20 h-20 rounded-2xl border-2 border-dashed border-border bg-muted/40 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+        >
+          <ImagePlus className="w-5 h-5" />
+          <span className="text-[10px] font-semibold">Add</span>
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {viewing && (
+          <motion.div
+            key="bonus-lightbox"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setViewing(null)}
+            className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-6 gap-4"
+          >
+            <motion.img
+              src={viewing.imageUrl}
+              alt={viewing.name}
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              onClick={e => e.stopPropagation()}
+              className="max-w-full max-h-[65vh] rounded-2xl object-contain"
+            />
+            <p onClick={e => e.stopPropagation()} className="text-white font-semibold text-base text-center px-4">
+              {viewing.name}
+            </p>
+            <div onClick={e => e.stopPropagation()} className="flex gap-3">
+              <button
+                onClick={() => setViewing(null)}
+                type="button"
+                className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => { onDelete(viewing.id); setViewing(null); }}
+                type="button"
+                className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+            <button
+              onClick={() => setViewing(null)}
+              type="button"
+              aria-label="Close"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </motion.div>
         )}
-        {uploading && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <Loader2 className="w-5 h-5 text-white animate-spin" />
-          </div>
-        )}
-        {imageUrl && !uploading && (
-          <div className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center">
-            <ImagePlus className="w-3 h-3 text-white" />
-          </div>
-        )}
-      </button>
+      </AnimatePresence>
     </div>
   );
 }
@@ -473,10 +519,10 @@ function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
 
 // ─── Lists overview (a group's home screen) ────────────────────────────────────
 
-function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, onBack, onSetBonusImage }: {
+function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, onBack, onAddBonusCard, onDeleteBonusCard }: {
   group: Group; onOpenList: (listId: string) => void; onDeleteList: (listId: string, name: string) => void;
   onAddList: () => void; onSettings: () => void; onBack: () => void;
-  onSetBonusImage: (imageUrl: string) => void;
+  onAddBonusCard: () => void; onDeleteBonusCard: (cardId: string) => void;
 }) {
   const lists = group.lists;
   const active = lists.length > 0 ? lists[lists.length - 1] : null;
@@ -560,7 +606,7 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
           </Btn>
         </div>
       )}
-      <BonusCard imageUrl={group.bonusImageUrl} onUpload={onSetBonusImage} />
+      <BonusCardRow cards={group.bonusCards} onAdd={onAddBonusCard} onDelete={onDeleteBonusCard} />
     </div>
   );
 }
@@ -819,13 +865,13 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onSetBonusImage }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
   onSetImage: (id: string, imageUrl: string) => void;
-  onSetBonusImage: (imageUrl: string) => void;
+  onAddBonusCard: () => void; onDeleteBonusCard: (cardId: string) => void;
 }) {
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -937,7 +983,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
           </LayoutGroup>
         </div>
       </div>
-      <BonusCard imageUrl={group.bonusImageUrl} onUpload={onSetBonusImage} />
+      <BonusCardRow cards={group.bonusCards} onAdd={onAddBonusCard} onDelete={onDeleteBonusCard} />
     </div>
   );
 }
@@ -1504,6 +1550,65 @@ export default function App() {
     }
   }
 
+  // ── Bonus cards ──
+  const [addBonusCardOpen, setAddBonusCardOpen] = useState(false);
+  const [addBonusCardGroupId, setAddBonusCardGroupId] = useState<string | null>(null);
+  const [newBonusCardName, setNewBonusCardName] = useState("");
+  const [newBonusCardImage, setNewBonusCardImage] = useState<string | null>(null);
+  const [compressingBonusImage, setCompressingBonusImage] = useState(false);
+  const [savingBonusCard, setSavingBonusCard] = useState(false);
+  const bonusCardFileInputRef = useRef<HTMLInputElement>(null);
+
+  function openAddBonusCard(groupId: string) {
+    setAddBonusCardGroupId(groupId);
+    setNewBonusCardName("");
+    setNewBonusCardImage(null);
+    setAddBonusCardOpen(true);
+  }
+
+  async function handleBonusCardFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setCompressingBonusImage(true);
+    try {
+      setNewBonusCardImage(await compressImageToDataUrl(file));
+    } catch {
+      notify("Couldn't process that photo.");
+    } finally {
+      setCompressingBonusImage(false);
+    }
+  }
+
+  async function doAddBonusCard() {
+    const name = newBonusCardName.trim();
+    const targetGroupId = addBonusCardGroupId;
+    if (!targetGroupId || !name || !newBonusCardImage) return;
+    setSavingBonusCard(true);
+    try {
+      const card = await apiAddBonusCard(targetGroupId, name, newBonusCardImage);
+      setGroups(gs => gs.map(g => g.id !== targetGroupId ? g : { ...g, bonusCards: [...g.bonusCards, mapBonusCard(card)] }));
+      setAddBonusCardOpen(false);
+      notify(`"${name}" added!`);
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : "Couldn't add that bonus card.");
+    } finally {
+      setSavingBonusCard(false);
+    }
+  }
+
+  function deleteBonusCard(cardId: string) {
+    if (!gid) return;
+    const prevCards = cg?.bonusCards ?? [];
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusCards: g.bonusCards.filter(c => c.id !== cardId) }));
+
+    apiDeleteBonusCard(gid, cardId).catch(() => {
+      setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusCards: prevCards }));
+      notify("Couldn't delete that bonus card.");
+    });
+  }
+
   // ── List item mutations ──
   function toggleItem(id: string) {
     if (!gid || !lid) return;
@@ -1642,18 +1747,6 @@ export default function App() {
     }
   }
 
-  function setBonusImage(imageUrl: string) {
-    if (!gid) return;
-    const prevImage = cg?.bonusImageUrl;
-
-    setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusImageUrl: imageUrl }));
-
-    apiSetGroupBonusImage(gid, imageUrl).catch(() => {
-      setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusImageUrl: prevImage }));
-      notify("Couldn't save the bonus card.");
-    });
-  }
-
   async function confirmRemoveMember() {
     if (!gid || !removeTarget) return;
     const target = removeTarget;
@@ -1759,7 +1852,8 @@ export default function App() {
                       onAddList={() => gid && openAddList(gid)}
                       onSettings={() => navigate(`/groups/${gid}/settings`)}
                       onBack={back}
-                      onSetBonusImage={setBonusImage}
+                      onAddBonusCard={() => gid && openAddBonusCard(gid)}
+                      onDeleteBonusCard={deleteBonusCard}
                     />
                   )}
                   {screen === "list" && cg && currentList && (
@@ -1767,7 +1861,8 @@ export default function App() {
                       group={cg} list={currentList} onBack={back}
                       onToggle={toggleItem} onEdit={editItemText} onAdd={addItem} onDeleteItem={deleteItemFn}
                       onSetImage={setItemImage}
-                      onSetBonusImage={setBonusImage}
+                      onAddBonusCard={() => gid && openAddBonusCard(gid)}
+                      onDeleteBonusCard={deleteBonusCard}
                     />
                   )}
                   {screen === "members" && cg && (
@@ -1888,6 +1983,60 @@ export default function App() {
                     <Btn variant="outline" full onClick={() => setAddListOpen(false)}>Cancel</Btn>
                     <Btn variant="primary" full onClick={doCreateList} loading={creatingList} disabled={!newListName.trim()}>
                       Create list
+                    </Btn>
+                  </div>
+                </div>
+              </Sheet>
+
+              <Sheet open={addBonusCardOpen} onClose={() => setAddBonusCardOpen(false)} title="Add a bonus card">
+                <div className="space-y-5">
+                  <Field
+                    label="Name"
+                    placeholder="e.g. Loyalty card, Coupon…"
+                    value={newBonusCardName}
+                    onChange={e => setNewBonusCardName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doAddBonusCard()}
+                    autoFocus
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">Image</p>
+                    <input
+                      ref={bonusCardFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBonusCardFileChange}
+                      className="hidden"
+                    />
+                    {newBonusCardImage ? (
+                      <button
+                        type="button"
+                        onClick={() => bonusCardFileInputRef.current?.click()}
+                        className="relative w-full h-32 rounded-2xl overflow-hidden border border-border"
+                      >
+                        <img src={newBonusCardImage} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-white">Tap to change</span>
+                        </div>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => bonusCardFileInputRef.current?.click()}
+                        disabled={compressingBonusImage}
+                        className="w-full h-32 rounded-2xl border-2 border-dashed border-border bg-muted/40 flex flex-col items-center justify-center gap-1.5 text-muted-foreground disabled:opacity-60"
+                      >
+                        {compressingBonusImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                        <span className="text-xs font-semibold">{compressingBonusImage ? "Processing…" : "Choose a photo"}</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setAddBonusCardOpen(false)}>Cancel</Btn>
+                    <Btn
+                      variant="primary" full onClick={doAddBonusCard} loading={savingBonusCard}
+                      disabled={!newBonusCardName.trim() || !newBonusCardImage}
+                    >
+                      Add card
                     </Btn>
                   </div>
                 </div>

@@ -39,12 +39,20 @@ export interface ApiList {
   items: ApiListItem[];
 }
 
+export interface ApiBonusCard {
+  id: string;
+  groupId: string;
+  name: string;
+  imageUrl: string;
+  createdAt: string;
+}
+
 export interface ApiGroup {
   id: string;
   name: string;
   emoji: string;
   inviteCode: string;
-  bonusImageUrl: string | null;
+  bonusCards: ApiBonusCard[];
   myRole: GroupRole;
   members: ApiMember[];
   lists: ApiList[];
@@ -248,11 +256,15 @@ export function regenerateInvite(groupId: string) {
   return apiFetch<{ inviteCode: string }>(`/groups/${groupId}/invite/regenerate`, { method: "POST" });
 }
 
-export function setGroupBonusImage(groupId: string, imageUrl: string) {
-  return apiFetch<{ bonusImageUrl: string | null }>(`/groups/${groupId}/bonus-image`, {
-    method: "PATCH",
-    body: JSON.stringify({ imageUrl }),
+export function addBonusCard(groupId: string, name: string, imageUrl: string) {
+  return apiFetch<ApiBonusCard>(`/groups/${groupId}/bonus-cards`, {
+    method: "POST",
+    body: JSON.stringify({ name, imageUrl }),
   });
+}
+
+export function deleteBonusCard(groupId: string, cardId: string) {
+  return apiFetch<void>(`/groups/${groupId}/bonus-cards/${cardId}`, { method: "DELETE" });
 }
 
 export function createList(groupId: string, name: string) {

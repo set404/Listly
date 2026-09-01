@@ -19,6 +19,7 @@ import {
 import {
   ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
   listGroups as apiListGroups,
+  getGroup as apiGetGroup,
   createGroup as apiCreateGroup,
   joinGroup as apiJoinGroup,
   leaveGroup as apiLeaveGroup,
@@ -237,6 +238,124 @@ function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => v
   );
 }
 
+// ─── Pull to refresh ────────────────────────────────────────────────────────
+//
+// Wraps the whole screen stage so swipe-down-to-refresh works the same on
+// every screen. React attaches its synthetic touchstart/touchmove listeners
+// as passive by default, which silently no-ops preventDefault() — so this
+// binds native listeners itself (touchmove non-passive) to actually be able
+// to suppress the browser's own scroll/bounce while a pull is in progress.
+
+const PULL_THRESHOLD = 64;
+const PULL_MAX = 100;
+
+function findScrollParent(el: HTMLElement | null, boundary: HTMLElement): HTMLElement | null {
+  let node = el;
+  while (node && node !== boundary) {
+    const style = getComputedStyle(node);
+    if ((style.overflowY === "auto" || style.overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promise<void>; children: React.ReactNode }) {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onRefreshRef = useRef(onRefresh);
+  const gestureRef = useRef({ startY: 0, pulling: false, active: false });
+
+  useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function onTouchStart(e: TouchEvent) {
+      if (gestureRef.current.active) return;
+      const scrollParent = findScrollParent(e.target as HTMLElement, container!);
+      const atTop = !scrollParent || scrollParent.scrollTop <= 0;
+      gestureRef.current = { startY: e.touches[0].clientY, pulling: atTop, active: false };
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!gestureRef.current.pulling) return;
+      const delta = e.touches[0].clientY - gestureRef.current.startY;
+      if (delta <= 0) {
+        setPullDistance(0);
+        return;
+      }
+      const scrollParent = findScrollParent(e.target as HTMLElement, container!);
+      if (scrollParent && scrollParent.scrollTop > 0) {
+        gestureRef.current.pulling = false;
+        setPullDistance(0);
+        return;
+      }
+      e.preventDefault();
+      setPullDistance(Math.min(delta * 0.45, PULL_MAX));
+    }
+
+    function onTouchEnd() {
+      if (!gestureRef.current.pulling) return;
+      gestureRef.current.pulling = false;
+      setPullDistance(current => {
+        if (current >= PULL_THRESHOLD) {
+          gestureRef.current.active = true;
+          setRefreshing(true);
+          onRefreshRef.current().finally(() => {
+            gestureRef.current.active = false;
+            setRefreshing(false);
+            setPullDistance(0);
+          });
+          return PULL_THRESHOLD;
+        }
+        return 0;
+      });
+    }
+
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd, { passive: true });
+    container.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
+      <div
+        className="absolute left-0 right-0 top-0 flex items-center justify-center pointer-events-none z-40"
+        style={{
+          height: 56,
+          transform: `translateY(${pullDistance - 56}px)`,
+          transition: pullDistance === 0 || refreshing ? "transform 0.2s" : "none",
+        }}
+      >
+        <Loader2
+          className={`w-5 h-5 text-primary transition-opacity ${pullDistance > 10 || refreshing ? "opacity-100" : "opacity-0"} ${refreshing ? "animate-spin" : ""}`}
+          style={!refreshing ? { transform: `rotate(${pullDistance * 2.4}deg)` } : undefined}
+        />
+      </div>
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{
+          transform: `translateY(${pullDistance}px)`,
+          transition: pullDistance === 0 || refreshing ? "transform 0.2s ease-out" : "none",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Bonus cards ────────────────────────────────────────────────────────────
 //
 // A group-owned, named set of images pinned to the bottom of the group's own
@@ -248,6 +367,12 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
   cards: BonusCardVM[]; onAdd: () => void; onDelete: (cardId: string) => void;
 }) {
   const [viewing, setViewing] = useState<BonusCardVM | null>(null);
+  const a = [
+      'lilit@lilit.com',
+      'tik@tik.com',
+      'mama@mama.com',
+      'mariam@mariam.com'
+  ]
 
   return (
     <div className="px-4 pb-4 pt-1 flex-shrink-0">
@@ -1251,6 +1376,11 @@ export default function App() {
     return list.length;
   }
 
+  async function handlePullRefresh() {
+    if (!currentUser) return;
+    await refreshGroups(currentUser.id).catch(() => notify("Couldn't refresh — check your connection."));
+  }
+
   function enterApp(user: ApiUser) {
     setCurrentUser(user);
     routedInitialScreen.current = true;
@@ -1376,6 +1506,16 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booting, currentUser, screen, gid, cg, lid, currentList]);
+
+  // Real-time keeps things in sync while you're already looking at a list,
+  // but landing on one fresh (from the lists screen, or straight back into
+  // the same one) should never show stale data — refetch its group every time.
+  useEffect(() => {
+    if (!currentUser || !gid || !lid) return;
+    apiGetGroup(gid)
+      .then(g => setGroups(gs => gs.map(group => group.id !== gid ? group : mapGroup(g, currentUser.id))))
+      .catch(() => {});
+  }, [currentUser, gid, lid]);
 
   // ── Realtime ──
   // One socket per session; connected whenever there's an active session and
@@ -1801,6 +1941,7 @@ export default function App() {
           ) : (
             <>
               {/* Screen layer */}
+              <PullToRefresh onRefresh={handlePullRefresh}>
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={location.pathname}
@@ -1881,6 +2022,7 @@ export default function App() {
                   )}
                 </motion.div>
               </AnimatePresence>
+              </PullToRefresh>
 
               {showTabBar && (
                 <BottomNav

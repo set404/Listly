@@ -1247,14 +1247,14 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard, onShare }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard, onShare, onRename }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
   onSetImage: (id: string, imageUrl: string) => void;
   onAddBonusCard?: () => void; onDeleteBonusCard?: (cardId: string) => void;
-  onShare?: () => void;
+  onShare?: () => void; onRename?: () => void;
 }) {
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -1275,6 +1275,15 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
             <ChevronLeft className="w-5 h-5 text-foreground" />
           </button>
           <h2 className="flex-1 font-bold text-lg text-foreground truncate">{list.name}</h2>
+          {onRename && (
+            <button
+              onClick={onRename}
+              aria-label="Edit name & icon"
+              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors flex-shrink-0"
+            >
+              <Pencil className="w-4 h-4 text-foreground" />
+            </button>
+          )}
           {onShare && (
             <button
               onClick={onShare}
@@ -2694,6 +2703,7 @@ export default function App() {
                       onAdd={addWishlistItem} onDeleteItem={deleteWishlistItemFn}
                       onSetImage={setWishlistItemImage}
                       onShare={() => setWShareOpen(true)}
+                      onRename={openEditWishlist}
                     />
                   )}
                   {screen === "profile" && currentUser && (
@@ -2936,13 +2946,6 @@ export default function App() {
                   <p className="text-sm text-muted-foreground">
                     Anyone with this link can view the wishlist — they can&apos;t add, check off, or change anything.
                   </p>
-                  <button
-                    onClick={openEditWishlist}
-                    className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Edit name &amp; icon
-                  </button>
                   {cw?.shareToken && (
                     <div className="bg-muted rounded-xl px-4 py-3 break-all text-xs font-mono text-foreground">
                       {`${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`}

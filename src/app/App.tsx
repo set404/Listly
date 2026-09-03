@@ -47,6 +47,7 @@ import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRo
 import { initPushNotifications } from "./lib/push";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
+import { Share as CapShare } from "@capacitor/share";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,32 @@ function getWishlistShareUrl(shareToken: string): string {
     ? PUBLIC_WEB_ORIGIN
     : `${window.location.origin}${window.location.pathname}`;
   return `${base}#/w/${shareToken}`;
+}
+
+// In the native app, navigator.share is unreliable in the WebView (usually
+// just missing), so the "Share" button silently fell back to a copy. The
+// Capacitor plugin talks to the OS share sheet directly instead. Web keeps
+// using the Web Share API (falling back to clipboard) exactly as before.
+async function shareWishlistLink(name: string, url: string): Promise<"shared" | "copied" | "cancelled"> {
+  const title = `${name} — a Listly wishlist`;
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await CapShare.share({ title, url });
+      return "shared";
+    } catch {
+      return "cancelled";
+    }
+  }
+  if (typeof navigator !== "undefined" && navigator.share) {
+    try {
+      await navigator.share({ title, url });
+      return "shared";
+    } catch {
+      return "cancelled";
+    }
+  }
+  await navigator.clipboard.writeText(url).catch(() => {});
+  return "copied";
 }
 
 // ─── API → view-model mapping ──────────────────────────────────────────────
@@ -1742,17 +1769,29 @@ export default function App() {
   const screen = match.screen;
   const canGoBack = (window.history.state?.idx ?? 0) > 0;
 
+  // Read inside the backButton listener below, which is only ever
+  // (re)subscribed on mount — anyModalOpen/closeAllModals are declared
+  // further down (after all the modal open-state), so their current
+  // values need to reach that stable closure via a ref kept fresh every
+  // render, rather than through the effect's own (mount-time-only) deps.
+  const anyModalOpenRef = useRef(false);
+  const closeAllModalsRef = useRef<() => void>(() => {});
+
   function back() {
+    if (anyModalOpen) { closeAllModals(); return; }
     navigate(-1);
   }
 
   // Capacitor's Android bridge doesn't automatically map the hardware back
   // button to in-app navigation — left unhandled, it just exits the
-  // activity from any screen. Pop one route (mirroring `back()`) when
-  // there's somewhere to go; only actually exit at the true root.
+  // activity from any screen. An open Sheet/Confirm is just an overlay on
+  // the current route, not its own route, so it's dismissed first; only
+  // once nothing is open does back press pop a route (mirroring `back()`),
+  // and only actually exit at the true root.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const subPromise = CapApp.addListener("backButton", () => {
+      if (anyModalOpenRef.current) { closeAllModalsRef.current(); return; }
       if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
       else CapApp.exitApp();
     });
@@ -2343,6 +2382,36 @@ export default function App() {
       notify("Couldn't delete that bonus card.");
     });
   }
+
+  // ── Modal/back-button coordination ──
+  // Every Sheet/Confirm above is just an overlay on top of the current
+  // route, not its own route — so both the in-app back chevron and the
+  // Android hardware back button should dismiss whichever one is open
+  // before they touch navigation at all, matching how a native app back
+  // press is expected to behave.
+  const anyModalOpen = createOpen || joinOpen || editGroupOpen || addListOpen || addBonusCardOpen
+    || leaveOpen || logoutOpen || !!removeTarget || !!deleteListTarget
+    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen;
+
+  function closeAllModals() {
+    setCreateOpen(false);
+    setJoinOpen(false);
+    setEditGroupOpen(false);
+    setAddListOpen(false);
+    setAddBonusCardOpen(false);
+    setLeaveOpen(false);
+    setLogoutOpen(false);
+    setRemoveTarget(null);
+    setDeleteListTarget(null);
+    setWCreateOpen(false);
+    setWShareOpen(false);
+    setWEditOpen(false);
+    setWRegenConfirmOpen(false);
+    setWDeleteOpen(false);
+  }
+
+  anyModalOpenRef.current = anyModalOpen;
+  closeAllModalsRef.current = closeAllModals;
 
   // ── List item mutations ──
   function toggleItem(id: string) {
@@ -2980,15 +3049,11 @@ export default function App() {
                     </Btn>
                     <Btn
                       variant="primary" full
-                      onClick={() => {
+                      onClick={async () => {
                         if (!cw?.shareToken) return;
                         const url = getWishlistShareUrl(cw.shareToken);
-                        if (typeof navigator !== "undefined" && navigator.share) {
-                          navigator.share({ title: `${cw.name} — a Listly wishlist`, url }).catch(() => {});
-                        } else {
-                          navigator.clipboard.writeText(url).catch(() => {});
-                          notify("Link copied!");
-                        }
+                        const result = await shareWishlistLink(cw.name, url);
+                        if (result === "copied") notify("Link copied!");
                       }}
                     >
                       <Share2 className="w-4 h-4" />

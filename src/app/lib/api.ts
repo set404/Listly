@@ -265,6 +265,13 @@ export function getGroup(groupId: string) {
   return apiFetch<ApiGroup>(`/groups/${groupId}`);
 }
 
+export function updateGroup(groupId: string, changes: { name?: string; emoji?: string }) {
+  return apiFetch<ApiGroup>(`/groups/${groupId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
 export function leaveGroup(groupId: string) {
   return apiFetch<void>(`/groups/${groupId}/leave`, { method: "DELETE" });
 }
@@ -336,6 +343,13 @@ export function createWishlist(name: string, emoji: string) {
 
 export function getWishlist(wishlistId: string) {
   return apiFetch<ApiWishlist>(`/wishlists/${wishlistId}`);
+}
+
+export function updateWishlist(wishlistId: string, changes: { name?: string; emoji?: string }) {
+  return apiFetch<ApiWishlist>(`/wishlists/${wishlistId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
 }
 
 export function deleteWishlist(wishlistId: string) {

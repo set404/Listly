@@ -5,7 +5,7 @@ import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate } from "m
 import { format } from "date-fns";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
-  Settings, Users, LogOut, UserPlus, Home, UserRound, Gift,
+  Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
   Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, type Member, type ThemeMode } from "./components/ui-kit";
@@ -23,6 +23,7 @@ import {
   listGroups as apiListGroups,
   getGroup as apiGetGroup,
   createGroup as apiCreateGroup,
+  updateGroup as apiUpdateGroup,
   joinGroup as apiJoinGroup,
   leaveGroup as apiLeaveGroup,
   removeMember as apiRemoveMember,
@@ -37,6 +38,7 @@ import {
   logout as apiLogout,
   listWishlists as apiListWishlists,
   createWishlist as apiCreateWishlist,
+  updateWishlist as apiUpdateWishlist,
   deleteWishlist as apiDeleteWishlist,
   regenerateWishlistShareLink as apiRegenerateWishlistShareLink,
   getPublicWishlist as apiGetPublicWishlist,
@@ -1542,8 +1544,8 @@ function SettingsRow({ icon, label, sub, danger, onClick }: {
   );
 }
 
-function SettingsScreen({ group, onBack, onMembers, onInvite, onLeave }: {
-  group: Group; onBack: () => void; onMembers: () => void; onInvite: () => void; onLeave: () => void;
+function SettingsScreen({ group, onBack, onEdit, onMembers, onInvite, onLeave }: {
+  group: Group; onBack: () => void; onEdit: () => void; onMembers: () => void; onInvite: () => void; onLeave: () => void;
 }) {
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
@@ -1572,6 +1574,7 @@ function SettingsScreen({ group, onBack, onMembers, onInvite, onLeave }: {
         <section>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">Group</p>
           <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+            <SettingsRow icon={<Pencil className="w-full h-full" />} label="Edit group" sub="Change the name or icon" onClick={onEdit} />
             <SettingsRow icon={<Users className="w-full h-full" />} label="Members" sub={`${group.members.length} people`} onClick={onMembers} />
             <SettingsRow icon={<UserPlus className="w-full h-full" />} label="Invite members" sub="Share a code to add others" onClick={onInvite} />
           </div>
@@ -2062,6 +2065,35 @@ export default function App() {
     }
   }
 
+  // ── Edit group ──
+  const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [egName, setEgName] = useState("");
+  const [egEmoji, setEgEmoji] = useState("📋");
+  const [egSaving, setEgSaving] = useState(false);
+
+  function openEditGroup() {
+    if (!cg) return;
+    setEgName(cg.name);
+    setEgEmoji(cg.emoji);
+    setEditGroupOpen(true);
+  }
+
+  async function doEditGroup() {
+    const name = egName.trim();
+    if (!gid || !name) return;
+    setEgSaving(true);
+    try {
+      const g = await apiUpdateGroup(gid, { name, emoji: egEmoji });
+      setGroups(gs => gs.map(x => x.id !== gid ? x : { ...x, name: g.name, emoji: g.emoji }));
+      setEditGroupOpen(false);
+      notify("Group updated!");
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : "Couldn't update the group.");
+    } finally {
+      setEgSaving(false);
+    }
+  }
+
   // ── Join group ──
   const [jCode, setJCode] = useState("");
   const [jStatus, setJStatus] = useState<JoinStatus>("idle");
@@ -2128,6 +2160,38 @@ export default function App() {
     } finally {
       setWRegenerating(false);
       setWRegenConfirmOpen(false);
+    }
+  }
+
+  const [wEditOpen, setWEditOpen] = useState(false);
+  const [weName, setWeName] = useState("");
+  const [weEmoji, setWeEmoji] = useState("🎁");
+  const [weSaving, setWeSaving] = useState(false);
+
+  function openEditWishlist() {
+    if (!cw) return;
+    setWeName(cw.name);
+    setWeEmoji(cw.emoji);
+    setWShareOpen(false);
+    setWEditOpen(true);
+  }
+
+  async function doEditWishlist() {
+    const name = weName.trim();
+    if (!wid || !name) return;
+    setWeSaving(true);
+    try {
+      const w = await apiUpdateWishlist(wid, { name, emoji: weEmoji });
+      setWishlists(ws => ws.map(x => x.id !== wid ? x : {
+        ...x, name: w.name, emoji: w.emoji,
+        list: x.list ? { ...x.list, name: w.name } : x.list,
+      }));
+      setWEditOpen(false);
+      notify("Wishlist updated!");
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : "Couldn't update the wishlist.");
+    } finally {
+      setWeSaving(false);
     }
   }
 
@@ -2669,6 +2733,7 @@ export default function App() {
                   {screen === "settings" && cg && (
                     <SettingsScreen
                       group={cg} onBack={back}
+                      onEdit={() => openEditGroup()}
                       onMembers={() => navigate(`/groups/${gid}/members`)} onInvite={() => navigate(`/groups/${gid}/invite`)}
                       onLeave={() => setLeaveOpen(true)}
                     />
@@ -2716,6 +2781,40 @@ export default function App() {
                   <div className="flex gap-3">
                     <Btn variant="outline" full onClick={() => setCreateOpen(false)}>Cancel</Btn>
                     <Btn variant="primary" full onClick={doCreate} loading={creating} disabled={!cName.trim()}>Create group</Btn>
+                  </div>
+                </div>
+              </Sheet>
+
+              <Sheet open={editGroupOpen} onClose={() => setEditGroupOpen(false)} title="Edit group">
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {EMOJIS.map(e => (
+                        <button
+                          key={e} onClick={() => setEgEmoji(e)}
+                          className={`h-12 rounded-xl flex items-center justify-center text-2xl transition-all ${
+                            egEmoji === e
+                              ? "bg-primary/15 border-2 border-primary scale-[1.05]"
+                              : "bg-muted border-2 border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Field
+                    label="Group name"
+                    placeholder="e.g. Chen Family, Work Lunches…"
+                    value={egName}
+                    onChange={e => setEgName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doEditGroup()}
+                    autoFocus
+                  />
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setEditGroupOpen(false)}>Cancel</Btn>
+                    <Btn variant="primary" full onClick={doEditGroup} loading={egSaving} disabled={!egName.trim()}>Save</Btn>
                   </div>
                 </div>
               </Sheet>
@@ -2798,11 +2897,52 @@ export default function App() {
                 </div>
               </Sheet>
 
+              <Sheet open={wEditOpen} onClose={() => setWEditOpen(false)} title="Edit wishlist">
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {WISHLIST_EMOJIS.map(e => (
+                        <button
+                          key={e} onClick={() => setWeEmoji(e)}
+                          className={`h-12 rounded-xl flex items-center justify-center text-2xl transition-all ${
+                            weEmoji === e
+                              ? "bg-primary/15 border-2 border-primary scale-[1.05]"
+                              : "bg-muted border-2 border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Field
+                    label="Wishlist name"
+                    placeholder="e.g. Birthday, Baby shower…"
+                    value={weName}
+                    onChange={e => setWeName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doEditWishlist()}
+                    autoFocus
+                  />
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setWEditOpen(false)}>Cancel</Btn>
+                    <Btn variant="primary" full onClick={doEditWishlist} loading={weSaving} disabled={!weName.trim()}>Save</Btn>
+                  </div>
+                </div>
+              </Sheet>
+
               <Sheet open={wShareOpen} onClose={() => setWShareOpen(false)} title="Share wishlist">
                 <div className="space-y-5">
                   <p className="text-sm text-muted-foreground">
                     Anyone with this link can view the wishlist — they can&apos;t add, check off, or change anything.
                   </p>
+                  <button
+                    onClick={openEditWishlist}
+                    className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit name &amp; icon
+                  </button>
                   {cw?.shareToken && (
                     <div className="bg-muted rounded-xl px-4 py-3 break-all text-xs font-mono text-foreground">
                       {`${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`}

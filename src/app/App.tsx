@@ -957,7 +957,6 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handlePhotoPick}
             className="hidden"
           />
@@ -1092,7 +1091,6 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleFile}
         className="hidden"
       />

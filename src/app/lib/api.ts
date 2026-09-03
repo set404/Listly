@@ -58,6 +58,20 @@ export interface ApiGroup {
   lists: ApiList[];
 }
 
+export interface ApiWishlist {
+  id: string;
+  name: string;
+  emoji: string;
+  shareToken: string | null;
+  list: ApiList | null;
+}
+
+export interface ApiPublicWishlist {
+  name: string;
+  emoji: string;
+  list: ApiList | null;
+}
+
 interface TokenPair {
   accessToken: string;
   refreshToken: string;
@@ -305,4 +319,35 @@ export function updateItem(
 
 export function deleteItem(listId: string, itemId: string) {
   return apiFetch<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" });
+}
+
+// ─── Wishlists ──────────────────────────────────────────────────────────────
+
+export function listWishlists() {
+  return apiFetch<ApiWishlist[]>("/wishlists");
+}
+
+export function createWishlist(name: string, emoji: string) {
+  return apiFetch<ApiWishlist>("/wishlists", {
+    method: "POST",
+    body: JSON.stringify({ name, emoji }),
+  });
+}
+
+export function getWishlist(wishlistId: string) {
+  return apiFetch<ApiWishlist>(`/wishlists/${wishlistId}`);
+}
+
+export function deleteWishlist(wishlistId: string) {
+  return apiFetch<void>(`/wishlists/${wishlistId}`, { method: "DELETE" });
+}
+
+export function regenerateWishlistShareLink(wishlistId: string) {
+  return apiFetch<{ shareToken: string }>(`/wishlists/${wishlistId}/share/regenerate`, { method: "POST" });
+}
+
+// No auth token needed — apiFetch omits the Authorization header when
+// signed out, and the server route ignores it entirely either way.
+export function getPublicWishlist(shareToken: string) {
+  return apiFetch<ApiPublicWishlist>(`/wishlists/public/${shareToken}`);
 }

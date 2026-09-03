@@ -5,7 +5,7 @@ import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate } from "m
 import { format } from "date-fns";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
-  Settings, Users, LogOut, UserPlus, Home, UserRound,
+  Settings, Users, LogOut, UserPlus, Home, UserRound, Gift,
   Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, type Member, type ThemeMode } from "./components/ui-kit";
@@ -19,6 +19,7 @@ import {
 } from "./lib/auth";
 import {
   ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
+  type ApiWishlist, type ApiPublicWishlist,
   listGroups as apiListGroups,
   getGroup as apiGetGroup,
   createGroup as apiCreateGroup,
@@ -34,6 +35,11 @@ import {
   updateItem as apiUpdateItem,
   deleteItem as apiDeleteItem,
   logout as apiLogout,
+  listWishlists as apiListWishlists,
+  createWishlist as apiCreateWishlist,
+  deleteWishlist as apiDeleteWishlist,
+  regenerateWishlistShareLink as apiRegenerateWishlistShareLink,
+  getPublicWishlist as apiGetPublicWishlist,
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { initPushNotifications } from "./lib/push";
@@ -42,8 +48,10 @@ import { App as CapApp } from "@capacitor/app";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Screen = "login" | "register" | "groups" | "profile" | "lists" | "list" | "settings" | "members" | "invite" | "unknown";
-type TabScreen = "groups" | "profile";
+type Screen =
+  | "login" | "register" | "groups" | "profile" | "lists" | "list" | "settings" | "members" | "invite"
+  | "wishlists" | "wishlist" | "public-wishlist" | "unknown";
+type TabScreen = "groups" | "wishlists" | "profile";
 type JoinStatus = "idle" | "loading" | "success" | "error";
 
 // ─── Route parsing ─────────────────────────────────────────────────────────
@@ -58,24 +66,36 @@ interface RouteMatch {
   screen: Screen;
   groupId: string | null;
   listId: string | null;
+  wishlistId: string | null;
+  shareToken: string | null;
 }
+
+const EMPTY_ROUTE_IDS = { groupId: null, listId: null, wishlistId: null, shareToken: null };
 
 function parseRoute(pathname: string): RouteMatch {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts[0] === "login") return { screen: "login", groupId: null, listId: null };
-  if (parts[0] === "register") return { screen: "register", groupId: null, listId: null };
-  if (parts[0] === "profile") return { screen: "profile", groupId: null, listId: null };
+  if (parts[0] === "login") return { screen: "login", ...EMPTY_ROUTE_IDS };
+  if (parts[0] === "register") return { screen: "register", ...EMPTY_ROUTE_IDS };
+  if (parts[0] === "profile") return { screen: "profile", ...EMPTY_ROUTE_IDS };
+  // Public, unauthenticated share link — a wishlist's read-only view.
+  if (parts[0] === "w" && parts[1]) {
+    return { screen: "public-wishlist", ...EMPTY_ROUTE_IDS, shareToken: parts[1] };
+  }
+  if (parts[0] === "wishlists") {
+    if (!parts[1]) return { screen: "wishlists", ...EMPTY_ROUTE_IDS };
+    return { screen: "wishlist", ...EMPTY_ROUTE_IDS, wishlistId: parts[1] };
+  }
   if (parts[0] === "groups") {
-    if (!parts[1]) return { screen: "groups", groupId: null, listId: null };
+    if (!parts[1]) return { screen: "groups", ...EMPTY_ROUTE_IDS };
     const groupId = parts[1];
     const sub = parts[2];
-    if (!sub) return { screen: "lists", groupId, listId: null };
-    if (sub === "list" && parts[3]) return { screen: "list", groupId, listId: parts[3] };
-    if (sub === "settings") return { screen: "settings", groupId, listId: null };
-    if (sub === "members") return { screen: "members", groupId, listId: null };
-    if (sub === "invite") return { screen: "invite", groupId, listId: null };
+    if (!sub) return { screen: "lists", ...EMPTY_ROUTE_IDS, groupId };
+    if (sub === "list" && parts[3]) return { screen: "list", ...EMPTY_ROUTE_IDS, groupId, listId: parts[3] };
+    if (sub === "settings") return { screen: "settings", ...EMPTY_ROUTE_IDS, groupId };
+    if (sub === "members") return { screen: "members", ...EMPTY_ROUTE_IDS, groupId };
+    if (sub === "invite") return { screen: "invite", ...EMPTY_ROUTE_IDS, groupId };
   }
-  return { screen: "unknown", groupId: null, listId: null };
+  return { screen: "unknown", ...EMPTY_ROUTE_IDS };
 }
 
 interface ListItem {
@@ -111,7 +131,16 @@ interface Group {
   myRole: GroupRole;
 }
 
+interface Wishlist {
+  id: string;
+  name: string;
+  emoji: string;
+  shareToken: string | null;
+  list: ListSummary | null;
+}
+
 const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿", "💼", "🎉"];
+const WISHLIST_EMOJIS = ["🎁", "🎂", "💍", "🎄", "👶", "🏡", "🎓", "❤️", "✨", "🎉"];
 
 // ─── API → view-model mapping ──────────────────────────────────────────────
 
@@ -137,6 +166,16 @@ function mapList(l: ApiList): ListSummary {
 
 function mapBonusCard(c: ApiBonusCard): BonusCardVM {
   return { id: c.id, name: c.name, imageUrl: c.imageUrl };
+}
+
+function mapWishlist(w: ApiWishlist): Wishlist {
+  return {
+    id: w.id,
+    name: w.name,
+    emoji: w.emoji,
+    shareToken: w.shareToken,
+    list: w.list ? mapList(w.list) : null,
+  };
 }
 
 function mapGroup(g: ApiGroup, currentUserId: string): Group {
@@ -196,6 +235,7 @@ const NAV_HEIGHT = 68;
 function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: TabScreen) => void }) {
   const tabs: { key: TabScreen; label: string; icon: React.ReactNode }[] = [
     { key: "groups", label: "Groups", icon: <Home className="w-5 h-5" /> },
+    { key: "wishlists", label: "Wishlists", icon: <Gift className="w-5 h-5" /> },
     { key: "profile", label: "Profile", icon: <UserRound className="w-5 h-5" /> },
   ];
   return (
@@ -709,6 +749,88 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
   );
 }
 
+// ─── Wishlists ────────────────────────────────────────────────────────────────
+
+function WishlistsScreen({ wishlists, onOpen, onCreate }: {
+  wishlists: Wishlist[]; onOpen: (id: string) => void; onCreate: () => void;
+}) {
+  return (
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <h1 className="text-2xl font-bold text-foreground">Wishlists</h1>
+        <button
+          onClick={onCreate}
+          className="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center hover:opacity-90 transition-all active:scale-95 shadow-sm shadow-primary/30"
+        >
+          <Plus className="w-4 h-4 text-primary-foreground" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-6">
+        {wishlists.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-5">
+            <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center">
+              <Gift className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="font-semibold text-foreground">No wishlists yet</p>
+              <p className="text-sm text-muted-foreground">Create one and share it as a read-only link.</p>
+            </div>
+            <Btn variant="primary" onClick={onCreate} size="md">
+              <Plus className="w-4 h-4" />
+              Create wishlist
+            </Btn>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {wishlists.map((w, i) => {
+              const items = w.list?.items ?? [];
+              const activeCount = items.filter(item => !item.completed).length;
+              const allDone = items.length > 0 && activeCount === 0;
+              return (
+                <motion.div
+                  key={w.id}
+                  layout
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpen(w.id)}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(w.id); } }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.22 }}
+                  className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3.5 hover:bg-muted/20 active:scale-[0.985] transition-all text-left shadow-sm cursor-pointer"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl flex-shrink-0">
+                    {w.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground text-sm leading-snug">{w.name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      {items.length === 0 ? (
+                        <span className="text-muted-foreground">No items yet</span>
+                      ) : allDone ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">All done ✓</span>
+                      ) : (
+                        <>
+                          <span className="text-primary font-semibold">{activeCount} left</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-muted-foreground">{items.length - activeCount}/{items.length}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── List card (used for both the featured active list and the rest) ─────────
 
 function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
@@ -1123,13 +1245,14 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard, onShare }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
   onSetImage: (id: string, imageUrl: string) => void;
-  onAddBonusCard: () => void; onDeleteBonusCard: (cardId: string) => void;
+  onAddBonusCard?: () => void; onDeleteBonusCard?: (cardId: string) => void;
+  onShare?: () => void;
 }) {
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
@@ -1150,6 +1273,15 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
             <ChevronLeft className="w-5 h-5 text-foreground" />
           </button>
           <h2 className="flex-1 font-bold text-lg text-foreground truncate">{list.name}</h2>
+          {onShare && (
+            <button
+              onClick={onShare}
+              aria-label="Share"
+              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors flex-shrink-0"
+            >
+              <Share2 className="w-4.5 h-4.5 text-foreground" />
+            </button>
+          )}
           <div className="flex -space-x-1.5">
             {group.members.slice(0, 3).map(m => (
               <div key={m.id} className="ring-2 ring-background rounded-full">
@@ -1241,7 +1373,9 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
           </LayoutGroup>
         </div>
       </div>
-      <BonusCardRow cards={group.bonusCards} onAdd={onAddBonusCard} onDelete={onDeleteBonusCard} />
+      {onAddBonusCard && onDeleteBonusCard && (
+        <BonusCardRow cards={group.bonusCards} onAdd={onAddBonusCard} onDelete={onDeleteBonusCard} />
+      )}
     </div>
   );
 }
@@ -1454,6 +1588,103 @@ function SettingsScreen({ group, onBack, onMembers, onInvite, onLeave }: {
   );
 }
 
+// ─── Public wishlist (read-only, no auth) ──────────────────────────────────────
+//
+// Reached via a shared link (/w/:token) — deliberately its own component
+// rather than reusing ItemRow/QuickAddRow/ListScreen, since every control
+// there is interactive and threading a readOnly prop through that whole
+// tree for a one-off static view isn't worth it.
+
+function PublicWishlistItemRow({ item }: { item: ListItem }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 px-1">
+      <div
+        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+          item.completed ? "bg-primary border-primary" : "border-muted-foreground/30"
+        }`}
+      >
+        {item.completed && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+      </div>
+      {item.imageUrl && (
+        <img src={item.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-border flex-shrink-0" />
+      )}
+      <span className={`flex-1 text-sm leading-relaxed ${item.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+        {item.text}
+      </span>
+    </div>
+  );
+}
+
+function PublicWishlistScreen({ shareToken }: { shareToken: string }) {
+  const [state, setState] = useState<
+    { status: "loading" } | { status: "error" } | { status: "ready"; data: ApiPublicWishlist }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    apiGetPublicWishlist(shareToken)
+      .then(data => { if (!cancelled) setState({ status: "ready", data }); })
+      .catch(() => { if (!cancelled) setState({ status: "error" }); });
+    return () => { cancelled = true; };
+  }, [shareToken]);
+
+  if (state.status === "loading") {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center">
+          <Gift className="w-7 h-7 text-muted-foreground" />
+        </div>
+        <p className="font-semibold text-foreground">This link isn't valid anymore</p>
+        <p className="text-sm text-muted-foreground">It may have been revoked or the wishlist deleted.</p>
+      </div>
+    );
+  }
+
+  const list = state.data.list;
+  const items = (list?.items ?? []).map(mapItem);
+  const active = items.filter(i => !i.completed);
+  const done = items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+
+  return (
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      <div className="px-4 pt-4 pb-2 border-b border-border flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-xl flex-shrink-0">
+          {state.data.emoji}
+        </div>
+        <h2 className="flex-1 font-bold text-lg text-foreground truncate">{state.data.name}</h2>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 pt-1 pb-6">
+        {items.length === 0 && (
+          <div className="text-center pt-8 pb-2">
+            <p className="text-sm text-muted-foreground">This wishlist is empty.</p>
+          </div>
+        )}
+        {active.map(item => <PublicWishlistItemRow key={item.id} item={item} />)}
+        {done.length > 0 && (
+          <div className="flex items-center gap-3 py-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Completed</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        )}
+        {done.map(item => <PublicWishlistItemRow key={item.id} item={item} />)}
+      </div>
+      <div className="px-4 py-3 border-t border-border text-center">
+        <p className="text-xs text-muted-foreground">Shared via Listly · view only</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -1514,7 +1745,10 @@ export default function App() {
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const fingerprintRef = useRef<string>("");
-  const routedInitialScreen = useRef(false);
+  // A public wishlist link is a valid landing page on its own — bootstrap
+  // must never claim it and redirect to /groups (or /login) the way it does
+  // for every other first load.
+  const routedInitialScreen = useRef(screen === "public-wishlist");
   // Count of in-flight addItem() submissions per "listId::text", still
   // waiting on their REST response. Lets the realtime item:created handler
   // recognize "this is my own submission echoing back" and skip rendering a
@@ -1534,9 +1768,15 @@ export default function App() {
     return list.length;
   }
 
+  async function refreshWishlists() {
+    const list = await apiListWishlists();
+    setWishlists(list.map(mapWishlist));
+  }
+
   async function handlePullRefresh() {
     if (!currentUser) return;
-    await refreshGroups(currentUser.id).catch(() => notify("Couldn't refresh — check your connection."));
+    await Promise.all([refreshGroups(currentUser.id), refreshWishlists()])
+      .catch(() => notify("Couldn't refresh — check your connection."));
   }
 
   function enterApp(user: ApiUser) {
@@ -1565,7 +1805,7 @@ export default function App() {
         setBooting(false);
         return;
       }
-      await refreshGroups(result.user.id);
+      await Promise.all([refreshGroups(result.user.id), refreshWishlists()]);
       if (!routedInitialScreen.current) {
         enterApp(result.user);
       } else {
@@ -1587,7 +1827,7 @@ export default function App() {
     setGuestLoading(true);
     try {
       const user = await continueAsGuest(fingerprintRef.current);
-      await refreshGroups(user.id);
+      await Promise.all([refreshGroups(user.id), refreshWishlists()]);
       enterApp(user);
     } catch {
       notify("Couldn't start a guest session. Try again.");
@@ -1601,7 +1841,7 @@ export default function App() {
     setRecoveryLoading(true);
     try {
       const user = await acceptRecovery(recovery.recoveryId);
-      await refreshGroups(user.id);
+      await Promise.all([refreshGroups(user.id), refreshWishlists()]);
       setRecovery(null);
       enterApp(user);
     } catch {
@@ -1625,7 +1865,7 @@ export default function App() {
   }
 
   async function handleAuthSuccess(user: ApiUser) {
-    await refreshGroups(user.id);
+    await Promise.all([refreshGroups(user.id), refreshWishlists()]);
     enterApp(user);
     notify(`Welcome, ${user.name.split(" ")[0]}!`);
   }
@@ -1637,13 +1877,22 @@ export default function App() {
   const cg = groups.find(g => g.id === gid) ?? null;
   const currentList = cg?.lists.find(l => l.id === lid) ?? null;
   const isAdmin = cg?.myRole === "ADMIN";
-  const showTabBar = screen === "groups" || screen === "profile";
+
+  // ── Wishlists state ──
+  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
+  const wid = match.wishlistId;
+  const cw = wishlists.find(w => w.id === wid) ?? null;
+
+  const showTabBar = screen === "groups" || screen === "wishlists" || screen === "profile";
 
   // ── Route guard ──
   // Keep the URL honest: bounce signed-out visitors off protected routes,
   // signed-in ones off the auth screens, and drop dead group links back home.
   useEffect(() => {
     if (booting) return;
+    // A shared wishlist link is public — reachable while signed out, and
+    // while signed in too (an owner opening their own link) — never bounced.
+    if (screen === "public-wishlist") return;
     const isAuthScreen = screen === "login" || screen === "register";
     if (!currentUser) {
       if (!isAuthScreen) navigate("/login", { replace: true });
@@ -1661,9 +1910,13 @@ export default function App() {
     // deleted it) via a real-time event, not just their own action.
     if (gid && lid && !currentList) {
       navigate(`/groups/${gid}`, { replace: true });
+      return;
+    }
+    if (wid && !cw) {
+      navigate("/wishlists", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booting, currentUser, screen, gid, cg, lid, currentList]);
+  }, [booting, currentUser, screen, gid, cg, lid, currentList, wid, cw]);
 
   // Real-time keeps things in sync while you're already looking at a list,
   // but landing on one fresh (from the lists screen, or straight back into
@@ -1832,6 +2085,63 @@ export default function App() {
     } catch (e) {
       setJStatus("error");
       setJErr(e instanceof ApiError ? e.message : "Invalid code. Double-check and try again.");
+    }
+  }
+
+  // ── Wishlists ──
+  const [wCreateOpen, setWCreateOpen] = useState(false);
+  const [wName, setWName] = useState("");
+  const [wEmoji, setWEmoji] = useState("🎁");
+  const [wCreating, setWCreating] = useState(false);
+  const [wShareOpen, setWShareOpen] = useState(false);
+  const [wRegenerating, setWRegenerating] = useState(false);
+  const [wRegenConfirmOpen, setWRegenConfirmOpen] = useState(false);
+  const [wDeleteOpen, setWDeleteOpen] = useState(false);
+
+  async function doCreateWishlist() {
+    const name = wName.trim();
+    if (!name) return;
+    setWCreating(true);
+    try {
+      const w = await apiCreateWishlist(name, wEmoji);
+      const mapped = mapWishlist(w);
+      setWishlists(ws => [...ws, mapped]);
+      setWName(""); setWEmoji("🎁"); setWCreateOpen(false);
+      navigate(`/wishlists/${mapped.id}`);
+      notify(`"${name}" created!`);
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : "Couldn't create the wishlist.");
+    } finally {
+      setWCreating(false);
+    }
+  }
+
+  async function doRegenerateWishlistLink() {
+    if (!wid) return;
+    setWRegenerating(true);
+    try {
+      const { shareToken } = await apiRegenerateWishlistShareLink(wid);
+      setWishlists(ws => ws.map(w => w.id !== wid ? w : { ...w, shareToken }));
+      notify("New link generated — the old one no longer works.");
+    } catch {
+      notify("Couldn't generate a new link.");
+    } finally {
+      setWRegenerating(false);
+      setWRegenConfirmOpen(false);
+    }
+  }
+
+  async function doDeleteWishlist() {
+    if (!wid) return;
+    try {
+      await apiDeleteWishlist(wid);
+      setWishlists(ws => ws.filter(w => w.id !== wid));
+      notify("Wishlist deleted.");
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : "Couldn't delete the wishlist.");
+    } finally {
+      setWDeleteOpen(false);
+      navigate("/wishlists", { replace: true });
     }
   }
 
@@ -2096,6 +2406,105 @@ export default function App() {
     });
   }
 
+  // ── Wishlist item mutations ── (same shape as the group ones above, keyed
+  // by wid/cw instead of gid/cg — a wishlist's list is always cw.list.)
+  function toggleWishlistItem(id: string) {
+    if (!wid || !cw?.list) return;
+    const listId = cw.list.id;
+    const prevItem = cw.list.items.find(i => i.id === id);
+    if (!prevItem) return;
+    const nextCompleted = !prevItem.completed;
+
+    setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+      ...w,
+      list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : { ...i, completed: nextCompleted, completedAt: nextCompleted ? Date.now() : undefined }) },
+    }));
+
+    apiUpdateItem(listId, id, { completed: nextCompleted }).catch(() => {
+      setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+        ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : prevItem) },
+      }));
+      notify("Couldn't update that item.");
+    });
+  }
+
+  function editWishlistItemText(id: string, text: string) {
+    if (!wid || !cw?.list) return;
+    const listId = cw.list.id;
+    const prevItem = cw.list.items.find(i => i.id === id);
+    if (!prevItem || prevItem.text === text) return;
+
+    setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+      ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : { ...i, text }) },
+    }));
+
+    apiUpdateItem(listId, id, { text }).catch(() => {
+      setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+        ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : prevItem) },
+      }));
+      notify("Couldn't update that item.");
+    });
+  }
+
+  function setWishlistItemImage(id: string, imageUrl: string) {
+    if (!wid || !cw?.list) return;
+    const listId = cw.list.id;
+    const prevItem = cw.list.items.find(i => i.id === id);
+    if (!prevItem) return;
+
+    setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+      ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : { ...i, imageUrl }) },
+    }));
+
+    apiUpdateItem(listId, id, { imageUrl }).catch(() => {
+      setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+        ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : prevItem) },
+      }));
+      notify("Couldn't add that photo.");
+    });
+  }
+
+  function addWishlistItem(text: string, imageUrl?: string) {
+    if (!wid || !cw?.list) return;
+    const listId = cw.list.id;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, imageUrl, completed: false };
+
+    setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : { ...w, list: { ...w.list, items: [...w.list.items, optimisticItem] } }));
+
+    apiAddItem(listId, text, imageUrl)
+      .then(item => {
+        setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+          ...w,
+          list: { ...w.list, items: w.list.items.map(i => i.clientId === tempId ? { ...mapItem(item), clientId: tempId } : i) },
+        }));
+      })
+      .catch(() => {
+        setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : { ...w, list: { ...w.list, items: w.list.items.filter(i => i.id !== tempId) } }));
+        notify("Couldn't add that item.");
+      });
+  }
+
+  function deleteWishlistItemFn(id: string) {
+    if (!wid || !cw?.list) return;
+    const listId = cw.list.id;
+    const idx = cw.list.items.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    const prevItem = cw.list.items[idx];
+
+    setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : { ...w, list: { ...w.list, items: w.list.items.filter(i => i.id !== id) } }));
+
+    apiDeleteItem(listId, id).catch(() => {
+      setWishlists(ws => ws.map(w => {
+        if (w.id !== wid || !w.list) return w;
+        const items = [...w.list.items];
+        items.splice(idx, 0, prevItem);
+        return { ...w, list: { ...w.list, items } };
+      }));
+      notify("Couldn't delete that item.");
+    });
+  }
+
   async function regenCode() {
     if (!gid) return;
     try {
@@ -2141,6 +2550,7 @@ export default function App() {
     await apiLogout().catch(() => {});
     setCurrentUser(null);
     setGroups([]);
+    setWishlists([]);
     navigate("/login", { replace: true });
     routedInitialScreen.current = false;
     runBootstrap();
@@ -2156,7 +2566,9 @@ export default function App() {
           className="relative bg-background overflow-hidden"
           style={{ width: "100%", height: "100%" }}
         >
-          {booting ? (
+          {screen === "public-wishlist" ? (
+            <PublicWishlistScreen shareToken={match.shareToken ?? ""} />
+          ) : booting ? (
             <BootSplash error={bootError} onRetry={runBootstrap} />
           ) : (
             <>
@@ -2197,6 +2609,27 @@ export default function App() {
                       onAddList={openAddList}
                       onCreate={() => setCreateOpen(true)}
                       onJoin={() => setJoinOpen(true)}
+                    />
+                  )}
+                  {screen === "wishlists" && (
+                    <WishlistsScreen
+                      wishlists={wishlists}
+                      onOpen={id => navigate(`/wishlists/${id}`)}
+                      onCreate={() => setWCreateOpen(true)}
+                    />
+                  )}
+                  {screen === "wishlist" && cw && cw.list && (
+                    <ListScreen
+                      group={{
+                        id: cw.id, name: cw.name, emoji: cw.emoji,
+                        members: [], bonusCards: [], inviteCode: "", myRole: "ADMIN",
+                        lists: [cw.list],
+                      }}
+                      list={cw.list} onBack={back}
+                      onToggle={toggleWishlistItem} onEdit={editWishlistItemText}
+                      onAdd={addWishlistItem} onDeleteItem={deleteWishlistItemFn}
+                      onSetImage={setWishlistItemImage}
+                      onShare={() => setWShareOpen(true)}
                     />
                   )}
                   {screen === "profile" && currentUser && (
@@ -2246,7 +2679,7 @@ export default function App() {
 
               {showTabBar && (
                 <BottomNav
-                  active={screen === "profile" ? "profile" : "groups"}
+                  active={screen === "profile" ? "profile" : screen === "wishlists" ? "wishlists" : "groups"}
                   onChange={tab => navigate(`/${tab}`)}
                 />
               )}
@@ -2328,6 +2761,98 @@ export default function App() {
                       </div>
                     </motion.div>
                   )}
+                </div>
+              </Sheet>
+
+              <Sheet open={wCreateOpen} onClose={() => setWCreateOpen(false)} title="Create a wishlist">
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {WISHLIST_EMOJIS.map(e => (
+                        <button
+                          key={e} onClick={() => setWEmoji(e)}
+                          className={`h-12 rounded-xl flex items-center justify-center text-2xl transition-all ${
+                            wEmoji === e
+                              ? "bg-primary/15 border-2 border-primary scale-[1.05]"
+                              : "bg-muted border-2 border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Field
+                    label="Wishlist name"
+                    placeholder="e.g. Birthday, Baby shower…"
+                    value={wName}
+                    onChange={e => setWName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doCreateWishlist()}
+                    autoFocus
+                  />
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setWCreateOpen(false)}>Cancel</Btn>
+                    <Btn variant="primary" full onClick={doCreateWishlist} loading={wCreating} disabled={!wName.trim()}>Create wishlist</Btn>
+                  </div>
+                </div>
+              </Sheet>
+
+              <Sheet open={wShareOpen} onClose={() => setWShareOpen(false)} title="Share wishlist">
+                <div className="space-y-5">
+                  <p className="text-sm text-muted-foreground">
+                    Anyone with this link can view the wishlist — they can&apos;t add, check off, or change anything.
+                  </p>
+                  {cw?.shareToken && (
+                    <div className="bg-muted rounded-xl px-4 py-3 break-all text-xs font-mono text-foreground">
+                      {`${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`}
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <Btn
+                      variant="outline" full
+                      onClick={() => {
+                        if (!cw?.shareToken) return;
+                        const url = `${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`;
+                        navigator.clipboard.writeText(url).catch(() => {});
+                        notify("Link copied!");
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </Btn>
+                    <Btn
+                      variant="primary" full
+                      onClick={() => {
+                        if (!cw?.shareToken) return;
+                        const url = `${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`;
+                        if (typeof navigator !== "undefined" && navigator.share) {
+                          navigator.share({ title: `${cw.name} — a Listly wishlist`, url }).catch(() => {});
+                        } else {
+                          navigator.clipboard.writeText(url).catch(() => {});
+                          notify("Link copied!");
+                        }
+                      }}
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Share
+                    </Btn>
+                  </div>
+                  <button
+                    onClick={() => setWRegenConfirmOpen(true)}
+                    disabled={wRegenerating}
+                    className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    {wRegenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Generate a new link
+                  </button>
+                  <button
+                    onClick={() => { setWShareOpen(false); setWDeleteOpen(true); }}
+                    className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete wishlist
+                  </button>
                 </div>
               </Sheet>
 
@@ -2423,6 +2948,20 @@ export default function App() {
                 title="Delete list?"
                 body={`"${deleteListTarget?.name}" and all of its items will be permanently deleted.`}
                 cta="Delete list" danger onConfirm={confirmDeleteList}
+              />
+
+              <Confirm
+                open={wRegenConfirmOpen} onClose={() => setWRegenConfirmOpen(false)}
+                title="Generate a new link?"
+                body="The old share link will stop working immediately — anyone who still has it will lose access."
+                cta="Generate new link" danger onConfirm={doRegenerateWishlistLink}
+              />
+
+              <Confirm
+                open={wDeleteOpen} onClose={() => setWDeleteOpen(false)}
+                title="Delete wishlist?"
+                body={`"${cw?.name}" and all of its items will be permanently deleted. Anyone with the share link will lose access.`}
+                cta="Delete wishlist" danger onConfirm={doDeleteWishlist}
               />
 
               <Confirm

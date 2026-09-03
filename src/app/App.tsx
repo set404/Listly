@@ -144,6 +144,20 @@ interface Wishlist {
 const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿", "💼", "🎉"];
 const WISHLIST_EMOJIS = ["🎁", "🎂", "💍", "🎄", "👶", "🏡", "🎓", "❤️", "✨", "🎉"];
 
+// The native app's WebView serves local assets from https://localhost, not
+// a real address anyone else can open — a share link built from
+// window.location there would be useless. Use the deployed web app's
+// actual origin for the link in that case; on web, the current origin is
+// already correct (and lets local dev builds share a working link too).
+const PUBLIC_WEB_ORIGIN = "https://set404.github.io/Listly/";
+
+function getWishlistShareUrl(shareToken: string): string {
+  const base = Capacitor.isNativePlatform()
+    ? PUBLIC_WEB_ORIGIN
+    : `${window.location.origin}${window.location.pathname}`;
+  return `${base}#/w/${shareToken}`;
+}
+
 // ─── API → view-model mapping ──────────────────────────────────────────────
 
 function mapItem(i: ApiListItem): ListItem {
@@ -2948,7 +2962,7 @@ export default function App() {
                   </p>
                   {cw?.shareToken && (
                     <div className="bg-muted rounded-xl px-4 py-3 break-all text-xs font-mono text-foreground">
-                      {`${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`}
+                      {getWishlistShareUrl(cw.shareToken)}
                     </div>
                   )}
                   <div className="flex gap-3">
@@ -2956,7 +2970,7 @@ export default function App() {
                       variant="outline" full
                       onClick={() => {
                         if (!cw?.shareToken) return;
-                        const url = `${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`;
+                        const url = getWishlistShareUrl(cw.shareToken);
                         navigator.clipboard.writeText(url).catch(() => {});
                         notify("Link copied!");
                       }}
@@ -2968,7 +2982,7 @@ export default function App() {
                       variant="primary" full
                       onClick={() => {
                         if (!cw?.shareToken) return;
-                        const url = `${window.location.origin}${window.location.pathname}#/w/${cw.shareToken}`;
+                        const url = getWishlistShareUrl(cw.shareToken);
                         if (typeof navigator !== "undefined" && navigator.share) {
                           navigator.share({ title: `${cw.name} — a Listly wishlist`, url }).catch(() => {});
                         } else {

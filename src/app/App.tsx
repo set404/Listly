@@ -1147,7 +1147,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
             if (e.key === "Escape") { setDraft(item.text); setEditing(false); }
           }}
           autoComplete="off"
-          className="flex-1 bg-transparent text-sm leading-relaxed text-foreground focus:outline-none"
+          className="flex-1 bg-transparent text-base md:text-sm leading-relaxed text-foreground focus:outline-none"
         />
       ) : (
         <span
@@ -1250,7 +1250,7 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
         onKeyDown={e => e.key === "Enter" && submit()}
         placeholder="Add item…"
         autoComplete="off"
-        className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+        className="flex-1 bg-transparent text-base md:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
       />
       <input
         ref={fileInputRef}
@@ -2720,7 +2720,7 @@ export default function App() {
         {/* position:relative so absolute overlays stay inside */}
         <div
           className="relative bg-background overflow-hidden"
-          style={{ width: "100%", height: "100%" }}
+          style={{ width: "100%", height: "100%", paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
           {screen === "public-wishlist" ? (
             <PublicWishlistScreen shareToken={match.shareToken ?? ""} />

@@ -89,7 +89,7 @@ export const Field = forwardRef<
     {label && <label className="text-sm font-semibold text-foreground">{label}</label>}
     <input
       ref={ref}
-      className={`w-full px-4 py-3.5 rounded-2xl bg-muted/80 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm border ${error ? "border-red-400" : "border-transparent focus:border-primary/20"} ${className}`}
+      className={`w-full px-4 py-3.5 rounded-2xl bg-muted/80 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-base md:text-sm border ${error ? "border-red-400" : "border-transparent focus:border-primary/20"} ${className}`}
       {...p}
     />
     {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}

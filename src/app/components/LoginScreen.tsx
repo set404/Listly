@@ -41,7 +41,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
       storeTokens(tokens);
       onSuccess(user);
     } catch (e) {
-      setGoogleError(e instanceof ApiError ? e.message : "Google sign-in failed. Try again.");
+      setGoogleError(e instanceof ApiError || e instanceof Error ? e.message : "Google sign-in failed. Try again.");
     } finally {
       setGoogleLoading(false);
     }

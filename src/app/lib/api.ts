@@ -189,6 +189,13 @@ export function login(email: string, password: string) {
   });
 }
 
+export function loginWithGoogle(idToken: string) {
+  return apiFetch<{ user: ApiUser; tokens: TokenPair }>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  });
+}
+
 export async function logout(): Promise<void> {
   const refreshToken = getRefreshToken();
   if (refreshToken) {

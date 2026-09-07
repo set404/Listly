@@ -20,6 +20,8 @@ import {
 import {
   ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
   type ApiWishlist, type ApiPublicWishlist,
+  loginWithGoogle as apiLoginWithGoogle,
+  storeTokens,
   listGroups as apiListGroups,
   getGroup as apiGetGroup,
   createGroup as apiCreateGroup,
@@ -45,6 +47,7 @@ import {
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { initPushNotifications } from "./lib/push";
+import { hasPendingGoogleRedirect, completeGoogleRedirectSignIn } from "./lib/googleAuth";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { Share as CapShare } from "@capacitor/share";
@@ -1854,6 +1857,26 @@ export default function App() {
     setBooting(true);
     setBootError(null);
     try {
+      if (hasPendingGoogleRedirect()) {
+        try {
+          const idToken = await completeGoogleRedirectSignIn();
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          const { user, tokens } = await apiLoginWithGoogle(idToken);
+          storeTokens(tokens);
+          await Promise.all([refreshGroups(user.id), refreshWishlists()]);
+          enterApp(user);
+          notify(`Welcome, ${user.name.split(" ")[0]}!`);
+          setBooting(false);
+          return;
+        } catch {
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          routedInitialScreen.current = true;
+          navigate("/login", { replace: true });
+          notify("Google sign-in failed. Try again.");
+          setBooting(false);
+          return;
+        }
+      }
       const result = await bootstrapSession();
       if (result.status === "recovery-pending") {
         fingerprintRef.current = result.fingerprint;

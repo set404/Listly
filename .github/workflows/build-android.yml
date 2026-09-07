@@ -42,6 +42,13 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug
 
+      - name: Print debug keystore SHA-1
+        run: |
+          keytool -list -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey -storepass android -keypass android \
+            | grep -E "SHA1:|SHA256:"
+
       - uses: actions/upload-artifact@v4
         with:
           name: listly-debug-apk

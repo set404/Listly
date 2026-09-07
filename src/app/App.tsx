@@ -278,6 +278,10 @@ async function compressImageToDataUrl(file: File): Promise<string> {
 
 const NAV_HEIGHT = 68;
 
+// The status bar/notch inset, trimmed a bit — using it as-is left a
+// noticeably taller gap above headers than the design called for.
+const TOP_INSET = "max(0px, calc(env(safe-area-inset-top, var(--safe-area-inset-top, 0px)) - 12px))";
+
 function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: TabScreen) => void }) {
   const tabs: { key: TabScreen; label: string; icon: React.ReactNode }[] = [
     { key: "groups", label: "Groups", icon: <Home className="w-5 h-5" /> },
@@ -2743,7 +2747,7 @@ export default function App() {
         {/* position:relative so absolute overlays stay inside */}
         <div
           className="relative bg-background overflow-hidden"
-          style={{ width: "100%", height: "100%", paddingTop: "env(safe-area-inset-top, var(--safe-area-inset-top, 0px))" }}
+          style={{ width: "100%", height: "100%", paddingTop: TOP_INSET }}
         >
           {screen === "public-wishlist" ? (
             <PublicWishlistScreen shareToken={match.shareToken ?? ""} />
@@ -2757,7 +2761,13 @@ export default function App() {
                 <motion.div
                   key={location.pathname}
                   className="absolute inset-0 flex flex-col overflow-hidden"
-                  style={{ borderRadius: "inherit", paddingBottom: showTabBar ? NAV_HEIGHT : 0 }}
+                  style={{
+                    borderRadius: "inherit",
+                    paddingTop: TOP_INSET,
+                    paddingBottom: showTabBar
+                      ? `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px)))`
+                      : "env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px))",
+                  }}
                   initial={{ opacity: 0, x: dir * 36 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: dir * -36 }}

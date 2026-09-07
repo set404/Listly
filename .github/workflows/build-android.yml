@@ -40,9 +40,15 @@ jobs:
 
       # A fresh runner has no debug.keystore, so the Android Gradle Plugin
       # would generate a brand-new random one on every run — a different
-      # SHA-1 (and a broken Google Sign-In) each build. Restore the same
-      # keystore every time instead, so its fingerprint only needs to be
-      # registered in Google Cloud Console once, ever.
+      # SHA-1 (and a broken Google Sign-In) each build. Restore a pinned
+      # keystore to android/ci-debug.keystore instead — an explicit path
+      # that android/app/build.gradle's debug signingConfig points at
+      # directly, since this runner's implicit default debug keystore
+      # location turned out NOT to be ~/.android/debug.keystore (that file
+      # was being written and read back fine, but Gradle was actually
+      # signing with a totally different, unpinned keystore — verified by
+      # extracting the real signing cert from a built APK). Pointing at an
+      # explicit file removes that ambiguity for good.
       - name: Restore CI debug keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
@@ -51,9 +57,8 @@ jobs:
             echo "::error::ANDROID_DEBUG_KEYSTORE_B64 secret is empty or not set — add it under Settings > Secrets and variables > Actions > Secrets."
             exit 1
           fi
-          mkdir -p ~/.android
-          printf '%s' "$KEYSTORE_B64" | base64 -d --ignore-garbage > ~/.android/debug.keystore
-          echo "Restored keystore: $(wc -c < ~/.android/debug.keystore) bytes, sha256=$(sha256sum ~/.android/debug.keystore | cut -d' ' -f1)"
+          printf '%s' "$KEYSTORE_B64" | base64 -d --ignore-garbage > android/ci-debug.keystore
+          echo "Restored keystore: $(wc -c < android/ci-debug.keystore) bytes, sha256=$(sha256sum android/ci-debug.keystore | cut -d' ' -f1)"
 
       - name: Build debug APK
         working-directory: android
@@ -62,9 +67,14 @@ jobs:
       - name: Print debug keystore SHA-1
         run: |
           keytool -list -v \
-            -keystore ~/.android/debug.keystore \
+            -keystore android/ci-debug.keystore \
             -alias androiddebugkey -storepass android -keypass android \
             | grep -E "SHA1:|SHA256:"
+
+      - name: Verify APK is actually signed with the pinned keystore
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:

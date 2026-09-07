@@ -287,7 +287,7 @@ function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: Ta
   return (
     <div
       className="absolute bottom-0 left-0 right-0 z-30 bg-card/95 backdrop-blur-sm border-t border-border flex"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{ paddingBottom: "env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px))" }}
     >
       {tabs.map(t => {
         const isActive = active === t.key;
@@ -2743,7 +2743,7 @@ export default function App() {
         {/* position:relative so absolute overlays stay inside */}
         <div
           className="relative bg-background overflow-hidden"
-          style={{ width: "100%", height: "100%", paddingTop: "env(safe-area-inset-top, 0px)" }}
+          style={{ width: "100%", height: "100%", paddingTop: "env(safe-area-inset-top, var(--safe-area-inset-top, 0px))" }}
         >
           {screen === "public-wishlist" ? (
             <PublicWishlistScreen shareToken={match.shareToken ?? ""} />

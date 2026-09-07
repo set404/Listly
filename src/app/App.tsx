@@ -425,8 +425,9 @@ function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promise<void>
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
       <div
-        className="absolute left-0 right-0 top-0 flex items-center justify-center pointer-events-none z-40"
+        className="absolute left-0 right-0 flex items-center justify-center pointer-events-none z-40"
         style={{
+          top: TOP_INSET,
           height: 56,
           transform: `translateY(${pullDistance - 56}px)`,
           transition: pullDistance === 0 || refreshing ? "transform 0.2s" : "none",

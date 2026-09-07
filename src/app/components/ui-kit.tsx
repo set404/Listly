@@ -1,6 +1,6 @@
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { AlertCircle, Loader2, X } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, X } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,22 +84,40 @@ export function Btn({ variant = "primary", size = "md", full, loading, className
 export const Field = forwardRef<
   HTMLInputElement,
   React.InputHTMLAttributes<HTMLInputElement> & { label?: string; error?: string; hint?: string }
->(({ label, error, hint, className = "", ...p }, ref) => (
-  <div className="flex flex-col gap-1.5 w-full">
-    {label && <label className="text-sm font-semibold text-foreground">{label}</label>}
-    <input
-      ref={ref}
-      className={`w-full px-4 py-3.5 rounded-2xl bg-muted/80 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-base md:text-sm border ${error ? "border-red-400" : "border-transparent focus:border-primary/20"} ${className}`}
-      {...p}
-    />
-    {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
-    {error && (
-      <p className="text-xs text-red-500 flex items-center gap-1.5">
-        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}
-      </p>
-    )}
-  </div>
-));
+>(({ label, error, hint, className = "", type, ...p }, ref) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      {label && <label className="text-sm font-semibold text-foreground">{label}</label>}
+      <div className="relative">
+        <input
+          ref={ref}
+          type={isPassword ? (showPassword ? "text" : "password") : type}
+          className={`w-full px-4 py-3.5 ${isPassword ? "pr-12" : ""} rounded-2xl bg-muted/80 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-base md:text-sm border ${error ? "border-red-400" : "border-transparent focus:border-primary/20"} ${className}`}
+          {...p}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(s => !s)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground transition-colors"
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
+      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}
+        </p>
+      )}
+    </div>
+  );
+});
 Field.displayName = "Field";
 
 // ─── Bottom Sheet (absolute-positioned, stays inside phone frame) ──────────────

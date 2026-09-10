@@ -8,7 +8,7 @@ import {
   Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
   Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X,
 } from "lucide-react";
-import { Btn, Field, Sheet, Confirm, Toast, Avatar, type Member, type ThemeMode } from "./components/ui-kit";
+import { Btn, Field, Sheet, Confirm, Toast, Avatar, SAFE_AREA_TOP, SAFE_AREA_BOTTOM, type Member, type ThemeMode } from "./components/ui-kit";
 import { LoginScreen } from "./components/LoginScreen";
 import { RegisterScreen } from "./components/RegisterScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
@@ -280,7 +280,7 @@ const NAV_HEIGHT = 68;
 
 // The status bar/notch inset, trimmed a bit — using it as-is left a
 // noticeably taller gap above headers than the design called for.
-const TOP_INSET = "max(0px, calc(env(safe-area-inset-top, var(--safe-area-inset-top, 0px)) - 12px))";
+const TOP_INSET = `max(0px, calc(${SAFE_AREA_TOP} - 12px))`;
 
 function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: TabScreen) => void }) {
   const tabs: { key: TabScreen; label: string; icon: React.ReactNode }[] = [
@@ -291,7 +291,7 @@ function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: Ta
   return (
     <div
       className="absolute bottom-0 left-0 right-0 z-30 bg-card/95 backdrop-blur-sm border-t border-border flex"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px))" }}
+      style={{ paddingBottom: SAFE_AREA_BOTTOM }}
     >
       {tabs.map(t => {
         const isActive = active === t.key;
@@ -2766,8 +2766,8 @@ export default function App() {
                     borderRadius: "inherit",
                     paddingTop: TOP_INSET,
                     paddingBottom: showTabBar
-                      ? `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px)))`
-                      : "env(safe-area-inset-bottom, var(--safe-area-inset-bottom, 0px))",
+                      ? `calc(${NAV_HEIGHT}px + ${SAFE_AREA_BOTTOM})`
+                      : SAFE_AREA_BOTTOM,
                   }}
                   initial={{ opacity: 0, x: dir * 36 }}
                   animate={{ opacity: 1, x: 0 }}

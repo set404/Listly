@@ -2,6 +2,19 @@ import { forwardRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AlertCircle, Eye, EyeOff, Loader2, X } from "lucide-react";
 
+// ─── Safe area insets (Android nav/status bar, iOS notch/home indicator) ──────
+//
+// var() must come first here: Android's WebView treats
+// env(safe-area-inset-*) as a supported feature that always resolves (to
+// 0px on devices with no real display cutout), so it never actually falls
+// back to a --safe-area-inset-* custom property — env()'s own fallback
+// argument is dead on Android. Reading var() first means Android uses the
+// value MainActivity injects (see src/main.tsx), while iOS (which never
+// gets that property set) falls through to env(), which WKWebView
+// populates natively.
+export const SAFE_AREA_TOP = "var(--safe-area-inset-top, env(safe-area-inset-top, 0px))";
+export const SAFE_AREA_BOTTOM = "var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type AvatarColor = "indigo" | "rose" | "amber" | "emerald" | "sky" | "orange" | "pink" | "violet";
@@ -156,8 +169,8 @@ export function Sheet({ open, onClose, title, children }: {
               </div>
             )}
             <div
-              className="px-6 pb-10 pt-4 overflow-y-auto"
-              style={{ maxHeight: "calc(90% - 68px)" }}
+              className="px-6 pt-4 overflow-y-auto"
+              style={{ maxHeight: "calc(90% - 68px)", paddingBottom: `calc(40px + ${SAFE_AREA_BOTTOM})` }}
             >
               {children}
             </div>

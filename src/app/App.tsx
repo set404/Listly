@@ -50,6 +50,7 @@ import {
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { initPushNotifications } from "./lib/push";
+import { checkForUpdate, dismissUpdate, type UpdateInfo } from "./lib/appUpdate";
 import { hasPendingGoogleRedirect, completeGoogleRedirectSignIn } from "./lib/googleAuth";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
@@ -2063,6 +2064,12 @@ export default function App() {
     if (currentUser) initPushNotifications().catch(() => {});
   }, [currentUser?.id]);
 
+  // Update check (native Android only — no-op elsewhere). Runs once per app
+  // launch, before or after login, since it doesn't depend on a session.
+  useEffect(() => {
+    checkForUpdate().then(info => { if (info) setUpdateInfo(info); }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!currentUser || !gid) return;
     const socket = getSocket();
@@ -2147,6 +2154,7 @@ export default function App() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
@@ -2449,7 +2457,7 @@ export default function App() {
   // press is expected to behave.
   const anyModalOpen = createOpen || joinOpen || editGroupOpen || addListOpen || addBonusCardOpen
     || leaveOpen || deleteGroupOpen || logoutOpen || !!removeTarget || !!deleteListTarget
-    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen;
+    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen || !!updateInfo;
 
   function closeAllModals() {
     setCreateOpen(false);
@@ -2467,6 +2475,17 @@ export default function App() {
     setWEditOpen(false);
     setWRegenConfirmOpen(false);
     setWDeleteOpen(false);
+    dismissUpdatePrompt();
+  }
+
+  function dismissUpdatePrompt() {
+    if (updateInfo) dismissUpdate(updateInfo.versionCode);
+    setUpdateInfo(null);
+  }
+
+  function downloadUpdate() {
+    if (updateInfo) window.open(updateInfo.url, "_blank");
+    dismissUpdatePrompt();
   }
 
   anyModalOpenRef.current = anyModalOpen;
@@ -3265,6 +3284,15 @@ export default function App() {
                 title={t("confirm.deleteWishlist.title")}
                 body={t("confirm.deleteWishlist.body", { name: cw?.name })}
                 cta={t("confirm.deleteWishlist.cta")} danger onConfirm={doDeleteWishlist}
+              />
+
+              <Confirm
+                open={!!updateInfo} onClose={dismissUpdatePrompt}
+                title={t("confirm.updateAvailable.title")}
+                body={updateInfo?.notes
+                  ? t("confirm.updateAvailable.bodyWithNotes", { version: updateInfo.version, notes: updateInfo.notes })
+                  : t("confirm.updateAvailable.body", { version: updateInfo?.version })}
+                cta={t("confirm.updateAvailable.cta")} onConfirm={downloadUpdate}
               />
 
               <Confirm

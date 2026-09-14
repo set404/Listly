@@ -261,6 +261,12 @@
       "title": "Sign out?",
       "body": "You'll be returned to the login screen. Registered accounts can log back in anytime, or continue as a guest again.",
       "cta": "Sign out"
+    },
+    "updateAvailable": {
+      "title": "Update available",
+      "body": "Version {{version}} of Listly is available. Download it now to get the latest features and fixes.",
+      "bodyWithNotes": "Version {{version}} of Listly is available: {{notes}}",
+      "cta": "Download"
     }
   },
   "toast": {

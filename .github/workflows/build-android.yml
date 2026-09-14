@@ -12,6 +12,9 @@ on:
       - ".github/workflows/build-android.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -62,6 +65,13 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
+        env:
+          # The in-app update check (src/app/lib/appUpdate.ts) compares this
+          # against the running app's versionCode, and the release tag below
+          # is set to the same value — so the run number is the single
+          # source of truth end to end, no manual version bump needed.
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: "1.0.${{ github.run_number }}"
         run: ./gradlew assembleDebug
 
       - name: Print debug keystore SHA-1
@@ -80,3 +90,19 @@ jobs:
         with:
           name: listly-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      # Publishes the APK where the app itself can find it: appUpdate.ts
+      # reads the latest GitHub Release's tag (this run number) and its
+      # .apk asset URL directly, so a new release here is all it takes for
+      # the in-app "Update available" prompt to pick it up — no other step.
+      - name: Publish GitHub Release with the APK
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk listly.apk
+          gh release create "${{ github.run_number }}" listly.apk \
+            --repo "${{ github.repository }}" \
+            --title "Listly 1.0.${{ github.run_number }}" \
+            --notes "Automated build from ${{ github.sha }}" \
+            --latest

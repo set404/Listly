@@ -1,0 +1,298 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "close": "Close",
+    "delete": "Delete",
+    "copy": "Copy",
+    "share": "Share",
+    "or": "or",
+    "you": "You",
+    "tryAgain": "Try again",
+    "processing": "Processing…",
+    "choosePhoto": "Choose a photo",
+    "tapToChange": "Tap to change",
+    "chooseIcon": "Choose an icon",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password"
+  },
+  "nav": {
+    "groups": "Groups",
+    "wishlists": "Wishlists",
+    "profile": "Profile"
+  },
+  "boot": {
+    "connectError": "Couldn't connect to Listly. Check your connection and try again."
+  },
+  "auth": {
+    "genericError": "Something went wrong. Try again.",
+    "googleError": "Google sign-in failed. Try again.",
+    "login": {
+      "title": "Log in",
+      "subtitle": "Welcome back to Listly.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Password",
+      "submit": "Log in",
+      "continueWithGoogle": "Continue with Google",
+      "continueAsGuest": "Continue as guest",
+      "noAccount": "Don't have an account?",
+      "registerLink": "Register"
+    },
+    "register": {
+      "title": "Create account",
+      "subtitle": "Keep your groups and lists synced everywhere.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Alex Chen",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "At least 8 characters",
+      "passwordHint": "At least 8 characters",
+      "submit": "Create account",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Log in"
+    }
+  },
+  "guestRecovery": {
+    "title": "Is this you?",
+    "body": "We found a recent guest session for <b>{{name}}</b> on this device. Restore it to get your groups back, or start fresh.",
+    "startFresh": "Start fresh",
+    "restore": "Restore"
+  },
+  "profile": {
+    "title": "Profile",
+    "guestSubtitle": "Guest · data tied to this device",
+    "guestBanner": "You're using guest mode. Log in to a registered account to sync your groups elsewhere.",
+    "login": "Log in",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "signOut": "Sign out"
+  },
+  "listStatus": {
+    "noItems": "No items yet",
+    "allDone": "All done ✓",
+    "left": "{{count}} left"
+  },
+  "groups": {
+    "title": "My Groups",
+    "join": "Join",
+    "emptyTitle": "No groups yet",
+    "emptyBody": "Create one or join with an invite code.",
+    "createGroup": "Create group",
+    "listCount_one": "{{count}} list",
+    "listCount_other": "{{count}} lists",
+    "activeList": "Active list",
+    "addListAria": "Add a list to {{name}}"
+  },
+  "wishlists": {
+    "title": "Wishlists",
+    "emptyTitle": "No wishlists yet",
+    "emptyBody": "Create one and share it as a read-only link.",
+    "createWishlist": "Create wishlist"
+  },
+  "listCard": {
+    "deleteAria": "Delete {{name}}"
+  },
+  "listsScreen": {
+    "emptyTitle": "No lists yet",
+    "emptyBody": "Create your first list to start adding items.",
+    "addList": "Add list",
+    "activeListLabel": "Active list",
+    "allListsLabel": "All lists",
+    "defaultListName": "List {{date}}"
+  },
+  "itemRow": {
+    "markComplete": "Mark complete",
+    "markIncomplete": "Mark incomplete",
+    "viewPhoto": "View photo",
+    "addPhoto": "Add a photo",
+    "deleteAria": "Delete {{text}}",
+    "close": "Close"
+  },
+  "quickAdd": {
+    "placeholder": "Add item…",
+    "removePhoto": "Remove photo",
+    "attachPhoto": "Attach a photo"
+  },
+  "listScreen": {
+    "editNameIcon": "Edit name & icon",
+    "share": "Share",
+    "empty": "Nothing here yet — add your first item below.",
+    "allDoneTitle": "All done!",
+    "allDoneBody": "Every item is checked off.",
+    "completed": "Completed"
+  },
+  "members": {
+    "title": "Members",
+    "removeAria": "Remove {{name}}"
+  },
+  "invite": {
+    "title": "Invite Members",
+    "shareCodeIntro": "Share this code to invite people to",
+    "inviteCode": "Invite Code",
+    "copied": "Copied!",
+    "copyCode": "Copy code",
+    "share": "Share",
+    "shareTitle": "Join {{name}} on Listly",
+    "shareText": "Use code {{code}} to join.",
+    "hint": "Anyone in the group can invite new members with this code. Generate a new code to revoke access.",
+    "generateNewCode": "Generate new code"
+  },
+  "settings": {
+    "title": "Settings",
+    "membersCount": "{{count}} members",
+    "youAreAdmin": " · You're the admin",
+    "groupSection": "Group",
+    "editGroup": "Edit group",
+    "editGroupSub": "Change the name or icon",
+    "membersLabel": "Members",
+    "peopleCount": "{{count}} people",
+    "inviteMembers": "Invite members",
+    "inviteMembersSub": "Share a code to add others",
+    "leaveGroup": "Leave group"
+  },
+  "publicWishlist": {
+    "invalidTitle": "This link isn't valid anymore",
+    "invalidBody": "It may have been revoked or the wishlist deleted.",
+    "empty": "This wishlist is empty.",
+    "footer": "Shared via Listly · view only"
+  },
+  "bonusCard": {
+    "addAria": "Add bonus card",
+    "add": "Add",
+    "close": "Close",
+    "delete": "Delete"
+  },
+  "sheets": {
+    "createGroup": {
+      "title": "Create a group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. Chen Family, Work Lunches…",
+      "submit": "Create group"
+    },
+    "editGroup": {
+      "title": "Edit group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. Chen Family, Work Lunches…",
+      "submit": "Save"
+    },
+    "joinGroup": {
+      "title": "Join a group",
+      "codeLabel": "Invite code",
+      "codePlaceholder": "e.g. AB7-K92",
+      "hint": "Ask a member to share their invite code from Settings → Invite.",
+      "submit": "Join group",
+      "joinedTitle": "Joined!",
+      "joinedBody": "You've been added to the group."
+    },
+    "createWishlist": {
+      "title": "Create a wishlist",
+      "nameLabel": "Wishlist name",
+      "namePlaceholder": "e.g. Birthday, Baby shower…",
+      "submit": "Create wishlist"
+    },
+    "editWishlist": {
+      "title": "Edit wishlist",
+      "nameLabel": "Wishlist name",
+      "namePlaceholder": "e.g. Birthday, Baby shower…",
+      "submit": "Save"
+    },
+    "shareWishlist": {
+      "title": "Share wishlist",
+      "body": "Anyone with this link can view the wishlist — they can't add, check off, or change anything.",
+      "copy": "Copy",
+      "share": "Share",
+      "generateNewLink": "Generate a new link",
+      "deleteWishlist": "Delete wishlist"
+    },
+    "addList": {
+      "title": "Add a list",
+      "nameLabel": "List name",
+      "namePlaceholder": "e.g. Groceries, Packing list…",
+      "submit": "Create list"
+    },
+    "addBonusCard": {
+      "title": "Add a bonus card",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Loyalty card, Coupon…",
+      "imageLabel": "Image",
+      "submit": "Add card"
+    }
+  },
+  "confirm": {
+    "leaveGroup": {
+      "title": "Leave group?",
+      "body": "You'll lose access to \"{{name}}\". You can rejoin anytime with an invite code from another member.",
+      "cta": "Leave group"
+    },
+    "removeMember": {
+      "title": "Remove member?",
+      "body": "{{memberName}} will lose access to \"{{groupName}}\" and its shared list.",
+      "cta": "Remove"
+    },
+    "deleteList": {
+      "title": "Delete list?",
+      "body": "\"{{name}}\" and all of its items will be permanently deleted.",
+      "cta": "Delete list"
+    },
+    "regenerateLink": {
+      "title": "Generate a new link?",
+      "body": "The old share link will stop working immediately — anyone who still has it will lose access.",
+      "cta": "Generate new link"
+    },
+    "deleteWishlist": {
+      "title": "Delete wishlist?",
+      "body": "\"{{name}}\" and all of its items will be permanently deleted. Anyone with the share link will lose access.",
+      "cta": "Delete wishlist"
+    },
+    "signOut": {
+      "title": "Sign out?",
+      "body": "You'll be returned to the login screen. Registered accounts can log back in anytime, or continue as a guest again.",
+      "cta": "Sign out"
+    }
+  },
+  "toast": {
+    "refreshFailed": "Couldn't refresh — check your connection.",
+    "welcome": "Welcome, {{name}}!",
+    "sessionMissing": "You need a session first — try reloading.",
+    "created": "\"{{name}}\" created!",
+    "couldNotCreateGroup": "Couldn't create the group.",
+    "groupUpdated": "Group updated!",
+    "couldNotUpdateGroup": "Couldn't update the group.",
+    "joined": "Joined \"{{name}}\"!",
+    "invalidCode": "Invalid code. Double-check and try again.",
+    "couldNotCreateWishlist": "Couldn't create the wishlist.",
+    "newLinkGenerated": "New link generated — the old one no longer works.",
+    "couldNotGenerateLink": "Couldn't generate a new link.",
+    "wishlistUpdated": "Wishlist updated!",
+    "couldNotUpdateWishlist": "Couldn't update the wishlist.",
+    "wishlistDeleted": "Wishlist deleted.",
+    "couldNotDeleteWishlist": "Couldn't delete the wishlist.",
+    "couldNotCreateList": "Couldn't create the list.",
+    "deleted": "\"{{name}}\" deleted.",
+    "couldNotDeleteList": "Couldn't delete the list.",
+    "couldNotProcessPhoto": "Couldn't process that photo.",
+    "added": "\"{{name}}\" added!",
+    "couldNotAddBonusCard": "Couldn't add that bonus card.",
+    "couldNotDeleteBonusCard": "Couldn't delete that bonus card.",
+    "couldNotUpdateItem": "Couldn't update that item.",
+    "couldNotAddPhoto": "Couldn't add that photo.",
+    "couldNotAddItem": "Couldn't add that item.",
+    "couldNotDeleteItem": "Couldn't delete that item.",
+    "removed": "Removed {{name}}.",
+    "couldNotRemoveMember": "Couldn't remove that member.",
+    "leftGroup": "Left the group.",
+    "couldNotLeaveGroup": "Couldn't leave the group.",
+    "newCodeGenerated": "New code generated!",
+    "couldNotGenerateCode": "Couldn't generate a new code.",
+    "linkCopied": "Link copied!",
+    "couldNotStartGuest": "Couldn't start a guest session. Try again.",
+    "couldNotRestoreSession": "Couldn't restore your session. Try again."
+  }
+}

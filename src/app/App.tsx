@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import type { TouchEvent as ReactTouchEvent, TouchList as ReactTouchList } from "react";
 import { useNavigate, useLocation, useNavigationType } from "react-router";
 import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
+import { hy as hyLocale } from "date-fns/locale";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
   Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
@@ -283,10 +285,11 @@ const NAV_HEIGHT = 68;
 const TOP_INSET = `max(0px, calc(${SAFE_AREA_TOP} - 12px))`;
 
 function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: TabScreen) => void }) {
+  const { t } = useTranslation();
   const tabs: { key: TabScreen; label: string; icon: React.ReactNode }[] = [
-    { key: "groups", label: "Groups", icon: <Home className="w-5 h-5" /> },
-    { key: "wishlists", label: "Wishlists", icon: <Gift className="w-5 h-5" /> },
-    { key: "profile", label: "Profile", icon: <UserRound className="w-5 h-5" /> },
+    { key: "groups", label: t("nav.groups"), icon: <Home className="w-5 h-5" /> },
+    { key: "wishlists", label: t("nav.wishlists"), icon: <Gift className="w-5 h-5" /> },
+    { key: "profile", label: t("nav.profile"), icon: <UserRound className="w-5 h-5" /> },
   ];
   return (
     <div
@@ -315,6 +318,7 @@ function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: Ta
 // ─── Loading splash ───────────────────────────────────────────────────────────
 
 function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-background gap-5 px-8 h-full">
       <div className="w-16 h-16 rounded-[22px] bg-primary flex items-center justify-center shadow-xl shadow-primary/30">
@@ -323,7 +327,7 @@ function BootSplash({ error, onRetry }: { error: string | null; onRetry: () => v
       {error ? (
         <div className="text-center space-y-3">
           <p className="text-sm text-muted-foreground max-w-[240px]">{error}</p>
-          <Btn variant="outline" size="sm" onClick={onRetry}>Try again</Btn>
+          <Btn variant="outline" size="sm" onClick={onRetry}>{t("common.tryAgain")}</Btn>
         </div>
       ) : (
         <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
@@ -584,13 +588,8 @@ function ZoomableImage({ src, alt, className }: { src: string; alt: string; clas
 function BonusCardRow({ cards, onAdd, onDelete }: {
   cards: BonusCardVM[]; onAdd: () => void; onDelete: (cardId: string) => void;
 }) {
+  const { t } = useTranslation();
   const [viewing, setViewing] = useState<BonusCardVM | null>(null);
-  const a = [
-      'lilit@lilit.com',
-      'tik@tik.com',
-      'mama@mama.com',
-      'mariam@mariam.com'
-  ]
 
   return (
     <div className="px-4 pb-4 pt-1 flex-shrink-0">
@@ -611,11 +610,11 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
         <button
           type="button"
           onClick={onAdd}
-          aria-label="Add bonus card"
+          aria-label={t("bonusCard.addAria")}
           className="flex-shrink-0 w-20 h-20 rounded-2xl border-2 border-dashed border-border bg-muted/40 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           <ImagePlus className="w-5 h-5" />
-          <span className="text-[10px] font-semibold">Add</span>
+          <span className="text-[10px] font-semibold">{t("bonusCard.add")}</span>
         </button>
       </div>
 
@@ -652,7 +651,7 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
                 type="button"
                 className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors"
               >
-                Close
+                {t("bonusCard.close")}
               </button>
               <button
                 onClick={() => { onDelete(viewing.id); setViewing(null); }}
@@ -660,13 +659,13 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
                 className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete
+                {t("bonusCard.delete")}
               </button>
             </div>
             <button
               onClick={() => setViewing(null)}
               type="button"
-              aria-label="Close"
+              aria-label={t("bonusCard.close")}
               className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
             >
               <X className="w-5 h-5" />
@@ -684,18 +683,19 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
   groups: Group[]; onOpen: (id: string) => void; onOpenActiveList: (groupId: string, listId: string) => void;
   onAddList: (groupId: string) => void; onCreate: () => void; onJoin: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <h1 className="text-2xl font-bold text-foreground">My Groups</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t("groups.title")}</h1>
         <div className="flex items-center gap-1.5">
           <button
             onClick={onJoin}
             className="h-9 px-3.5 rounded-xl text-sm font-semibold text-primary hover:bg-primary/10 transition-colors flex items-center gap-1.5"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            Join
+            {t("groups.join")}
           </button>
           <button
             onClick={onCreate}
@@ -713,12 +713,12 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
               <Users className="w-7 h-7 text-muted-foreground" />
             </div>
             <div className="text-center space-y-1.5">
-              <p className="font-semibold text-foreground">No groups yet</p>
-              <p className="text-sm text-muted-foreground">Create one or join with an invite code.</p>
+              <p className="font-semibold text-foreground">{t("groups.emptyTitle")}</p>
+              <p className="text-sm text-muted-foreground">{t("groups.emptyBody")}</p>
             </div>
             <Btn variant="primary" onClick={onCreate} size="md">
               <Plus className="w-4 h-4" />
-              Create group
+              {t("groups.createGroup")}
             </Btn>
           </div>
         ) : (
@@ -747,17 +747,17 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-foreground text-sm leading-snug">{g.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 text-xs">
-                      <span className="text-muted-foreground">{g.lists.length} {g.lists.length === 1 ? "list" : "lists"}</span>
+                      <span className="text-muted-foreground">{t("groups.listCount", { count: g.lists.length })}</span>
                       {activeCount > 0 && (
                         <>
                           <span className="text-muted-foreground/40">·</span>
-                          <span className="text-primary font-semibold">{activeCount} left</span>
+                          <span className="text-primary font-semibold">{t("listStatus.left", { count: activeCount })}</span>
                         </>
                       )}
                       {allDone && (
                         <>
                           <span className="text-muted-foreground/40">·</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">All done ✓</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{t("listStatus.allDone")}</span>
                         </>
                       )}
                     </div>
@@ -779,12 +779,12 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
                       onClick={e => { e.stopPropagation(); onOpenActiveList(g.id, activeList.id); }}
                       className="h-8 px-3 rounded-lg text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 active:scale-95 transition-all flex-shrink-0"
                     >
-                      Active list
+                      {t("groups.activeList")}
                     </button>
                   )}
                   <button
                     onClick={e => { e.stopPropagation(); onAddList(g.id); }}
-                    aria-label={`Add a list to ${g.name}`}
+                    aria-label={t("groups.addListAria", { name: g.name })}
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 transition-all flex-shrink-0"
                   >
                     <Plus className="w-4 h-4" />
@@ -805,11 +805,12 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
 function WishlistsScreen({ wishlists, onOpen, onCreate }: {
   wishlists: Wishlist[]; onOpen: (id: string) => void; onCreate: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <h1 className="text-2xl font-bold text-foreground">Wishlists</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t("wishlists.title")}</h1>
         <button
           onClick={onCreate}
           className="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center hover:opacity-90 transition-all active:scale-95 shadow-sm shadow-primary/30"
@@ -825,12 +826,12 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
               <Gift className="w-7 h-7 text-muted-foreground" />
             </div>
             <div className="text-center space-y-1.5">
-              <p className="font-semibold text-foreground">No wishlists yet</p>
-              <p className="text-sm text-muted-foreground">Create one and share it as a read-only link.</p>
+              <p className="font-semibold text-foreground">{t("wishlists.emptyTitle")}</p>
+              <p className="text-sm text-muted-foreground">{t("wishlists.emptyBody")}</p>
             </div>
             <Btn variant="primary" onClick={onCreate} size="md">
               <Plus className="w-4 h-4" />
-              Create wishlist
+              {t("wishlists.createWishlist")}
             </Btn>
           </div>
         ) : (
@@ -859,12 +860,12 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
                     <p className="font-semibold text-foreground text-sm leading-snug">{w.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 text-xs">
                       {items.length === 0 ? (
-                        <span className="text-muted-foreground">No items yet</span>
+                        <span className="text-muted-foreground">{t("listStatus.noItems")}</span>
                       ) : allDone ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">All done ✓</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{t("listStatus.allDone")}</span>
                       ) : (
                         <>
-                          <span className="text-primary font-semibold">{activeCount} left</span>
+                          <span className="text-primary font-semibold">{t("listStatus.left", { count: activeCount })}</span>
                           <span className="text-muted-foreground/40">·</span>
                           <span className="text-muted-foreground">{items.length - activeCount}/{items.length}</span>
                         </>
@@ -887,6 +888,7 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
 function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
   list: ListSummary; featured?: boolean; delay?: number; onClick: () => void; onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const activeCount = list.items.filter(i => !i.completed).length;
   const doneCount = list.items.length - activeCount;
   const allDone = list.items.length > 0 && activeCount === 0;
@@ -916,12 +918,12 @@ function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
           <p className="font-semibold text-foreground text-sm leading-snug truncate">{list.name}</p>
           <div className="flex items-center gap-1.5 mt-0.5 text-xs">
             {list.items.length === 0 ? (
-              <span className="text-muted-foreground">No items yet</span>
+              <span className="text-muted-foreground">{t("listStatus.noItems")}</span>
             ) : allDone ? (
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">All done ✓</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{t("listStatus.allDone")}</span>
             ) : (
               <>
-                <span className="text-primary font-semibold">{activeCount} left</span>
+                <span className="text-primary font-semibold">{t("listStatus.left", { count: activeCount })}</span>
                 <span className="text-muted-foreground/40">·</span>
                 <span className="text-muted-foreground">{doneCount}/{list.items.length}</span>
               </>
@@ -930,7 +932,7 @@ function ListCard({ list, featured, delay = 0, onClick, onDelete }: {
         </div>
         <button
           onClick={e => { e.stopPropagation(); onDelete(); }}
-          aria-label={`Delete ${list.name}`}
+          aria-label={t("listCard.deleteAria", { name: list.name })}
           className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-red-500/10 hover:text-red-500 active:scale-95 transition-all flex-shrink-0"
         >
           <Trash2 className="w-4 h-4" />
@@ -953,6 +955,7 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
   onAddList: () => void; onSettings: () => void; onBack: () => void;
   onAddBonusCard: () => void; onDeleteBonusCard: (cardId: string) => void;
 }) {
+  const { t } = useTranslation();
   const lists = group.lists;
   const active = lists.length > 0 ? lists[lists.length - 1] : null;
   const others = lists.length > 1 ? lists.slice(0, -1).slice().reverse() : [];
@@ -991,19 +994,19 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
           <div className="flex flex-col items-center justify-center h-full gap-5 px-8">
             <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center text-3xl">📋</div>
             <div className="text-center space-y-1.5">
-              <p className="font-semibold text-foreground">No lists yet</p>
-              <p className="text-sm text-muted-foreground">Create your first list to start adding items.</p>
+              <p className="font-semibold text-foreground">{t("listsScreen.emptyTitle")}</p>
+              <p className="text-sm text-muted-foreground">{t("listsScreen.emptyBody")}</p>
             </div>
             <Btn variant="primary" onClick={onAddList} size="md">
               <Plus className="w-4 h-4" />
-              Add list
+              {t("listsScreen.addList")}
             </Btn>
           </div>
         ) : (
           <>
             {active && (
               <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">Active list</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">{t("listsScreen.activeListLabel")}</p>
                 <ListCard
                   list={active} featured onClick={() => onOpenList(active.id)}
                   onDelete={() => onDeleteList(active.id, active.name)}
@@ -1012,7 +1015,7 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
             )}
             {others.length > 0 && (
               <div className="mt-6">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">All lists</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">{t("listsScreen.allListsLabel")}</p>
                 <div className="space-y-3">
                   {others.map((l, i) => (
                     <ListCard
@@ -1031,7 +1034,7 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
         <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background">
           <Btn variant="primary" full size="lg" onClick={onAddList}>
             <Plus className="w-5 h-5" />
-            Add list
+            {t("listsScreen.addList")}
           </Btn>
         </div>
       )}
@@ -1046,6 +1049,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
   item: ListItem; onToggle: () => void; onEdit: (text: string) => void; onDelete: () => void;
   onSetImage: (imageUrl: string) => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1093,7 +1097,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
         onClick={onToggle}
         type="button"
         className="flex-shrink-0"
-        aria-label={item.completed ? "Mark incomplete" : "Mark complete"}
+        aria-label={item.completed ? t("itemRow.markIncomplete") : t("itemRow.markComplete")}
       >
         <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
           item.completed ? "bg-emerald-500 border-emerald-500" : "border-border hover:border-primary/60"
@@ -1115,7 +1119,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
         <button
           type="button"
           onClick={() => setLightboxOpen(true)}
-          aria-label="View photo"
+          aria-label={t("itemRow.viewPhoto")}
           className="flex-shrink-0"
         >
           <img
@@ -1137,7 +1141,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={attachingPhoto}
-            aria-label="Add a photo"
+            aria-label={t("itemRow.addPhoto")}
             className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
           >
             {attachingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
@@ -1168,7 +1172,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
       <button
         onClick={onDelete}
         type="button"
-        aria-label={`Delete ${item.text}`}
+        aria-label={t("itemRow.deleteAria", { text: item.text })}
         className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:bg-red-500/10 hover:text-red-500 transition-colors"
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -1201,7 +1205,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
             <button
               onClick={() => setLightboxOpen(false)}
               type="button"
-              aria-label="Close"
+              aria-label={t("itemRow.close")}
               className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
             >
               <X className="w-5 h-5" />
@@ -1216,6 +1220,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
 // ─── Quick-add row (sits right after the last checkbox) ────────────────────────
 
 function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => void }) {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -1256,7 +1261,7 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
         value={text}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => e.key === "Enter" && submit()}
-        placeholder="Add item…"
+        placeholder={t("quickAdd.placeholder")}
         autoComplete="off"
         className="flex-1 bg-transparent text-base md:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
       />
@@ -1273,7 +1278,7 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
           <button
             onClick={() => setImageDataUrl(null)}
             type="button"
-            aria-label="Remove photo"
+            aria-label={t("quickAdd.removePhoto")}
             className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background flex items-center justify-center"
           >
             <X className="w-2.5 h-2.5" />
@@ -1284,7 +1289,7 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
           onClick={() => fileInputRef.current?.click()}
           type="button"
           disabled={compressing}
-          aria-label="Attach a photo"
+          aria-label={t("quickAdd.attachPhoto")}
           className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
         >
           {compressing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
@@ -1305,6 +1310,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
   onAddBonusCard?: () => void; onDeleteBonusCard?: (cardId: string) => void;
   onShare?: () => void; onRename?: () => void;
 }) {
+  const { t } = useTranslation();
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   const total = list.items.length;
@@ -1327,7 +1333,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
           {onRename && (
             <button
               onClick={onRename}
-              aria-label="Edit name & icon"
+              aria-label={t("listScreen.editNameIcon")}
               className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors flex-shrink-0"
             >
               <Pencil className="w-4 h-4 text-foreground" />
@@ -1336,7 +1342,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
           {onShare && (
             <button
               onClick={onShare}
-              aria-label="Share"
+              aria-label={t("listScreen.share")}
               className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors flex-shrink-0"
             >
               <Share2 className="w-4.5 h-4.5 text-foreground" />
@@ -1379,7 +1385,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
         <div className="px-4 pt-1 pb-6">
           {total === 0 && (
             <div className="text-center pt-8 pb-2">
-              <p className="text-sm text-muted-foreground">Nothing here yet — add your first item below.</p>
+              <p className="text-sm text-muted-foreground">{t("listScreen.empty")}</p>
             </div>
           )}
           <LayoutGroup>
@@ -1404,8 +1410,8 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
                 >
                   <span className="text-xl">🎉</span>
                   <div>
-                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">All done!</p>
-                    <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70">Every item is checked off.</p>
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{t("listScreen.allDoneTitle")}</p>
+                    <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70">{t("listScreen.allDoneBody")}</p>
                   </div>
                 </motion.div>
               )}
@@ -1417,7 +1423,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
                 >
                   <div className="h-px flex-1 bg-border" />
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                    Completed
+                    {t("listScreen.completed")}
                   </span>
                   <div className="h-px flex-1 bg-border" />
                 </motion.div>
@@ -1445,13 +1451,14 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
 function MembersScreen({ group, isAdmin, onBack, onRemove }: {
   group: Group; isAdmin: boolean; onBack: () => void; onRemove: (m: Member) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <button onClick={onBack} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted -ml-1 transition-colors">
           <ChevronLeft className="w-5 h-5 text-foreground" />
         </button>
-        <h2 className="flex-1 font-bold text-lg text-foreground">Members</h2>
+        <h2 className="flex-1 font-bold text-lg text-foreground">{t("members.title")}</h2>
         <span className="text-sm text-muted-foreground font-medium">{group.members.length}</span>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
@@ -1467,12 +1474,12 @@ function MembersScreen({ group, isAdmin, onBack, onRemove }: {
               <p className="font-semibold text-foreground text-sm">{m.name}</p>
             </div>
             {m.isCurrentUser && (
-              <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">You</span>
+              <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">{t("common.you")}</span>
             )}
             {isAdmin && !m.isCurrentUser && (
               <button
                 onClick={() => onRemove(m)}
-                aria-label={`Remove ${m.name}`}
+                aria-label={t("members.removeAria", { name: m.name })}
                 className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -1490,6 +1497,7 @@ function MembersScreen({ group, isAdmin, onBack, onRemove }: {
 function InviteScreen({ group, onBack, onNewCode }: {
   group: Group; onBack: () => void; onNewCode: () => void;
 }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [regen, setRegen] = useState(false);
 
@@ -1501,7 +1509,10 @@ function InviteScreen({ group, onBack, onNewCode }: {
 
   function share() {
     if (typeof navigator !== "undefined" && navigator.share) {
-      navigator.share({ title: `Join ${group.name} on Listly`, text: `Use code ${group.inviteCode} to join.` }).catch(() => {});
+      navigator.share({
+        title: t("invite.shareTitle", { name: group.name }),
+        text: t("invite.shareText", { code: group.inviteCode }),
+      }).catch(() => {});
     } else {
       copy();
     }
@@ -1518,12 +1529,12 @@ function InviteScreen({ group, onBack, onNewCode }: {
         <button onClick={onBack} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted -ml-1 transition-colors">
           <ChevronLeft className="w-5 h-5 text-foreground" />
         </button>
-        <h2 className="flex-1 font-bold text-lg text-foreground">Invite Members</h2>
+        <h2 className="flex-1 font-bold text-lg text-foreground">{t("invite.title")}</h2>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-8 px-7 pb-8">
         <div className="text-center space-y-1">
-          <p className="text-sm text-muted-foreground">Share this code to invite people to</p>
+          <p className="text-sm text-muted-foreground">{t("invite.shareCodeIntro")}</p>
           <p className="font-bold text-foreground">{group.name}</p>
         </div>
 
@@ -1536,7 +1547,7 @@ function InviteScreen({ group, onBack, onNewCode }: {
             transition={{ type: "spring", stiffness: 400, damping: 28 }}
             className="w-full bg-card border-2 border-border rounded-3xl p-7 flex flex-col items-center gap-2 shadow-sm"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Invite Code</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("invite.inviteCode")}</p>
             <span
               className="text-[38px] font-bold tracking-[0.22em] text-foreground"
               style={{ fontFamily: "'DM Mono', monospace" }}
@@ -1554,17 +1565,17 @@ function InviteScreen({ group, onBack, onNewCode }: {
               className={copied ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : ""}
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Copied!" : "Copy code"}
+              {copied ? t("invite.copied") : t("invite.copyCode")}
             </Btn>
             <Btn variant="outline" full onClick={share}>
               <Share2 className="w-4 h-4" />
-              Share
+              {t("invite.share")}
             </Btn>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground text-center leading-relaxed max-w-[256px]">
-          Anyone in the group can invite new members with this code. Generate a new code to revoke access.
+          {t("invite.hint")}
         </p>
 
         <button
@@ -1573,7 +1584,7 @@ function InviteScreen({ group, onBack, onNewCode }: {
           className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
         >
           {regen ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Generate new code
+          {t("invite.generateNewCode")}
         </button>
       </div>
     </div>
@@ -1605,13 +1616,14 @@ function SettingsRow({ icon, label, sub, danger, onClick }: {
 function SettingsScreen({ group, onBack, onEdit, onMembers, onInvite, onLeave }: {
   group: Group; onBack: () => void; onEdit: () => void; onMembers: () => void; onInvite: () => void; onLeave: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <button onClick={onBack} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted -ml-1 transition-colors">
           <ChevronLeft className="w-5 h-5 text-foreground" />
         </button>
-        <h2 className="flex-1 font-bold text-lg text-foreground">Settings</h2>
+        <h2 className="flex-1 font-bold text-lg text-foreground">{t("settings.title")}</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -1623,25 +1635,25 @@ function SettingsScreen({ group, onBack, onEdit, onMembers, onInvite, onLeave }:
           <div>
             <p className="font-bold text-foreground text-sm">{group.name}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {group.members.length} members{group.myRole === "ADMIN" ? " · You're the admin" : ""}
+              {t("settings.membersCount", { count: group.members.length })}{group.myRole === "ADMIN" ? t("settings.youAreAdmin") : ""}
             </p>
           </div>
         </div>
 
         {/* Group section */}
         <section>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">Group</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.18em] mb-2 px-1">{t("settings.groupSection")}</p>
           <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
-            <SettingsRow icon={<Pencil className="w-full h-full" />} label="Edit group" sub="Change the name or icon" onClick={onEdit} />
-            <SettingsRow icon={<Users className="w-full h-full" />} label="Members" sub={`${group.members.length} people`} onClick={onMembers} />
-            <SettingsRow icon={<UserPlus className="w-full h-full" />} label="Invite members" sub="Share a code to add others" onClick={onInvite} />
+            <SettingsRow icon={<Pencil className="w-full h-full" />} label={t("settings.editGroup")} sub={t("settings.editGroupSub")} onClick={onEdit} />
+            <SettingsRow icon={<Users className="w-full h-full" />} label={t("settings.membersLabel")} sub={t("settings.peopleCount", { count: group.members.length })} onClick={onMembers} />
+            <SettingsRow icon={<UserPlus className="w-full h-full" />} label={t("settings.inviteMembers")} sub={t("settings.inviteMembersSub")} onClick={onInvite} />
           </div>
         </section>
 
         {/* Account */}
         <section>
           <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
-            <SettingsRow icon={<LogOut className="w-full h-full" />} label="Leave group" danger onClick={onLeave} />
+            <SettingsRow icon={<LogOut className="w-full h-full" />} label={t("settings.leaveGroup")} danger onClick={onLeave} />
           </div>
         </section>
       </div>
@@ -1677,6 +1689,7 @@ function PublicWishlistItemRow({ item }: { item: ListItem }) {
 }
 
 function PublicWishlistScreen({ shareToken }: { shareToken: string }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<
     { status: "loading" } | { status: "error" } | { status: "ready"; data: ApiPublicWishlist }
   >({ status: "loading" });
@@ -1704,8 +1717,8 @@ function PublicWishlistScreen({ shareToken }: { shareToken: string }) {
         <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center">
           <Gift className="w-7 h-7 text-muted-foreground" />
         </div>
-        <p className="font-semibold text-foreground">This link isn't valid anymore</p>
-        <p className="text-sm text-muted-foreground">It may have been revoked or the wishlist deleted.</p>
+        <p className="font-semibold text-foreground">{t("publicWishlist.invalidTitle")}</p>
+        <p className="text-sm text-muted-foreground">{t("publicWishlist.invalidBody")}</p>
       </div>
     );
   }
@@ -1726,21 +1739,21 @@ function PublicWishlistScreen({ shareToken }: { shareToken: string }) {
       <div className="flex-1 overflow-y-auto px-4 pt-1 pb-6">
         {items.length === 0 && (
           <div className="text-center pt-8 pb-2">
-            <p className="text-sm text-muted-foreground">This wishlist is empty.</p>
+            <p className="text-sm text-muted-foreground">{t("publicWishlist.empty")}</p>
           </div>
         )}
         {active.map(item => <PublicWishlistItemRow key={item.id} item={item} />)}
         {done.length > 0 && (
           <div className="flex items-center gap-3 py-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Completed</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">{t("listScreen.completed")}</span>
             <div className="h-px flex-1 bg-border" />
           </div>
         )}
         {done.map(item => <PublicWishlistItemRow key={item.id} item={item} />)}
       </div>
       <div className="px-4 py-3 border-t border-border text-center">
-        <p className="text-xs text-muted-foreground">Shared via Listly · view only</p>
+        <p className="text-xs text-muted-foreground">{t("publicWishlist.footer")}</p>
       </div>
     </div>
   );
@@ -1749,6 +1762,7 @@ function PublicWishlistScreen({ shareToken }: { shareToken: string }) {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   // ── Theme ──
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [sysDark, setSysDark] = useState(() =>
@@ -1849,7 +1863,7 @@ export default function App() {
   async function handlePullRefresh() {
     if (!currentUser) return;
     await Promise.all([refreshGroups(currentUser.id), refreshWishlists()])
-      .catch(() => notify("Couldn't refresh — check your connection."));
+      .catch(() => notify(t("toast.refreshFailed")));
   }
 
   function enterApp(user: ApiUser) {
@@ -1870,14 +1884,14 @@ export default function App() {
           storeTokens(tokens);
           await Promise.all([refreshGroups(user.id), refreshWishlists()]);
           enterApp(user);
-          notify(`Welcome, ${user.name.split(" ")[0]}!`);
+          notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
           setBooting(false);
           return;
         } catch {
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
           routedInitialScreen.current = true;
           navigate("/login", { replace: true });
-          notify("Google sign-in failed. Try again.");
+          notify(t("auth.googleError"));
           setBooting(false);
           return;
         }
@@ -1906,7 +1920,7 @@ export default function App() {
       }
       setBooting(false);
     } catch {
-      setBootError("Couldn't connect to Listly. Check your connection and try again.");
+      setBootError(t("boot.connectError"));
       setBooting(false);
     }
   }
@@ -1923,7 +1937,7 @@ export default function App() {
       await Promise.all([refreshGroups(user.id), refreshWishlists()]);
       enterApp(user);
     } catch {
-      notify("Couldn't start a guest session. Try again.");
+      notify(t("toast.couldNotStartGuest"));
     } finally {
       setGuestLoading(false);
     }
@@ -1938,7 +1952,7 @@ export default function App() {
       setRecovery(null);
       enterApp(user);
     } catch {
-      notify("Couldn't restore your session. Try again.");
+      notify(t("toast.couldNotRestoreSession"));
     } finally {
       setRecoveryLoading(false);
     }
@@ -1960,7 +1974,7 @@ export default function App() {
   async function handleAuthSuccess(user: ApiUser) {
     await Promise.all([refreshGroups(user.id), refreshWishlists()]);
     enterApp(user);
-    notify(`Welcome, ${user.name.split(" ")[0]}!`);
+    notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
   }
 
   // ── Groups state ──
@@ -2141,15 +2155,15 @@ export default function App() {
   async function doCreate() {
     const name = cName.trim();
     if (!name) return;
-    if (!currentUser) { notify("You need a session first — try reloading."); return; }
+    if (!currentUser) { notify(t("toast.sessionMissing")); return; }
     setCreating(true);
     try {
       const g = await apiCreateGroup(name, cEmoji);
       setGroups(gs => [...gs, mapGroup(g, currentUser.id)]);
       setCName(""); setCEmoji("📋"); setCreateOpen(false);
-      notify(`"${name}" created!`);
+      notify(t("toast.created", { name }));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't create the group.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotCreateGroup"));
     } finally {
       setCreating(false);
     }
@@ -2176,9 +2190,9 @@ export default function App() {
       const g = await apiUpdateGroup(gid, { name, emoji: egEmoji });
       setGroups(gs => gs.map(x => x.id !== gid ? x : { ...x, name: g.name, emoji: g.emoji }));
       setEditGroupOpen(false);
-      notify("Group updated!");
+      notify(t("toast.groupUpdated"));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't update the group.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotUpdateGroup"));
     } finally {
       setEgSaving(false);
     }
@@ -2194,7 +2208,7 @@ export default function App() {
   async function doJoin() {
     const code = jCode.trim().toUpperCase();
     if (!code) return;
-    if (!currentUser) { notify("You need a session first — try reloading."); return; }
+    if (!currentUser) { notify(t("toast.sessionMissing")); return; }
     setJStatus("loading");
     try {
       const g = await apiJoinGroup(code);
@@ -2202,11 +2216,11 @@ export default function App() {
       setJStatus("success");
       setTimeout(() => {
         setJoinOpen(false); resetJoin();
-        notify(`Joined "${g.name}"!`);
+        notify(t("toast.joined", { name: g.name }));
       }, 1200);
     } catch (e) {
       setJStatus("error");
-      setJErr(e instanceof ApiError ? e.message : "Invalid code. Double-check and try again.");
+      setJErr(e instanceof ApiError ? e.message : t("toast.invalidCode"));
     }
   }
 
@@ -2230,9 +2244,9 @@ export default function App() {
       setWishlists(ws => [...ws, mapped]);
       setWName(""); setWEmoji("🎁"); setWCreateOpen(false);
       navigate(`/wishlists/${mapped.id}`);
-      notify(`"${name}" created!`);
+      notify(t("toast.created", { name }));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't create the wishlist.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotCreateWishlist"));
     } finally {
       setWCreating(false);
     }
@@ -2244,9 +2258,9 @@ export default function App() {
     try {
       const { shareToken } = await apiRegenerateWishlistShareLink(wid);
       setWishlists(ws => ws.map(w => w.id !== wid ? w : { ...w, shareToken }));
-      notify("New link generated — the old one no longer works.");
+      notify(t("toast.newLinkGenerated"));
     } catch {
-      notify("Couldn't generate a new link.");
+      notify(t("toast.couldNotGenerateLink"));
     } finally {
       setWRegenerating(false);
       setWRegenConfirmOpen(false);
@@ -2277,9 +2291,9 @@ export default function App() {
         list: x.list ? { ...x.list, name: w.name } : x.list,
       }));
       setWEditOpen(false);
-      notify("Wishlist updated!");
+      notify(t("toast.wishlistUpdated"));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't update the wishlist.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotUpdateWishlist"));
     } finally {
       setWeSaving(false);
     }
@@ -2290,9 +2304,9 @@ export default function App() {
     try {
       await apiDeleteWishlist(wid);
       setWishlists(ws => ws.filter(w => w.id !== wid));
-      notify("Wishlist deleted.");
+      notify(t("toast.wishlistDeleted"));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't delete the wishlist.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotDeleteWishlist"));
     } finally {
       setWDeleteOpen(false);
       navigate("/wishlists", { replace: true });
@@ -2308,7 +2322,8 @@ export default function App() {
 
   function openAddList(groupId: string) {
     setAddListGroupId(groupId);
-    setNewListName(`List ${format(new Date(), "MMM d")}`);
+    const dateLabel = format(new Date(), "MMM d", { locale: i18n.language === "hy" ? hyLocale : undefined });
+    setNewListName(t("listsScreen.defaultListName", { date: dateLabel }));
     setAddListOpen(true);
   }
 
@@ -2329,9 +2344,9 @@ export default function App() {
       }));
       setAddListOpen(false);
       navigate(`/groups/${targetGroupId}/list/${l.id}`);
-      notify(`"${name}" created!`);
+      notify(t("toast.created", { name }));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't create the list.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotCreateList"));
     } finally {
       setCreatingList(false);
     }
@@ -2343,10 +2358,10 @@ export default function App() {
     try {
       await apiDeleteList(groupId, listId);
       setGroups(gs => gs.map(g => g.id !== groupId ? g : { ...g, lists: g.lists.filter(l => l.id !== listId) }));
-      notify(`"${name}" deleted.`);
+      notify(t("toast.deleted", { name }));
       if (lid === listId) navigate(`/groups/${groupId}`, { replace: true });
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't delete the list.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotDeleteList"));
     } finally {
       setDeleteListTarget(null);
     }
@@ -2376,7 +2391,7 @@ export default function App() {
     try {
       setNewBonusCardImage(await compressImageToDataUrl(file));
     } catch {
-      notify("Couldn't process that photo.");
+      notify(t("toast.couldNotProcessPhoto"));
     } finally {
       setCompressingBonusImage(false);
     }
@@ -2391,9 +2406,9 @@ export default function App() {
       const card = await apiAddBonusCard(targetGroupId, name, newBonusCardImage);
       setGroups(gs => gs.map(g => g.id !== targetGroupId ? g : { ...g, bonusCards: [...g.bonusCards, mapBonusCard(card)] }));
       setAddBonusCardOpen(false);
-      notify(`"${name}" added!`);
+      notify(t("toast.added", { name }));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't add that bonus card.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotAddBonusCard"));
     } finally {
       setSavingBonusCard(false);
     }
@@ -2407,7 +2422,7 @@ export default function App() {
 
     apiDeleteBonusCard(gid, cardId).catch(() => {
       setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, bonusCards: prevCards }));
-      notify("Couldn't delete that bonus card.");
+      notify(t("toast.couldNotDeleteBonusCard"));
     });
   }
 
@@ -2464,7 +2479,7 @@ export default function App() {
         ...g,
         lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
       }));
-      notify("Couldn't update that item.");
+      notify(t("toast.couldNotUpdateItem"));
     });
   }
 
@@ -2487,7 +2502,7 @@ export default function App() {
         ...g,
         lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
       }));
-      notify("Couldn't update that item.");
+      notify(t("toast.couldNotUpdateItem"));
     });
   }
 
@@ -2510,7 +2525,7 @@ export default function App() {
         ...g,
         lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
       }));
-      notify("Couldn't add that photo.");
+      notify(t("toast.couldNotAddPhoto"));
     });
   }
 
@@ -2560,7 +2575,7 @@ export default function App() {
           ...g,
           lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.filter(i => i.id !== tempId) }),
         }));
-        notify("Couldn't add that item.");
+        notify(t("toast.couldNotAddItem"));
       });
   }
 
@@ -2586,7 +2601,7 @@ export default function App() {
           return { ...l, items };
         }),
       }));
-      notify("Couldn't delete that item.");
+      notify(t("toast.couldNotDeleteItem"));
     });
   }
 
@@ -2608,7 +2623,7 @@ export default function App() {
       setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
         ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : prevItem) },
       }));
-      notify("Couldn't update that item.");
+      notify(t("toast.couldNotUpdateItem"));
     });
   }
 
@@ -2626,7 +2641,7 @@ export default function App() {
       setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
         ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : prevItem) },
       }));
-      notify("Couldn't update that item.");
+      notify(t("toast.couldNotUpdateItem"));
     });
   }
 
@@ -2644,7 +2659,7 @@ export default function App() {
       setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
         ...w, list: { ...w.list, items: w.list.items.map(i => i.id !== id ? i : prevItem) },
       }));
-      notify("Couldn't add that photo.");
+      notify(t("toast.couldNotAddPhoto"));
     });
   }
 
@@ -2665,7 +2680,7 @@ export default function App() {
       })
       .catch(() => {
         setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : { ...w, list: { ...w.list, items: w.list.items.filter(i => i.id !== tempId) } }));
-        notify("Couldn't add that item.");
+        notify(t("toast.couldNotAddItem"));
       });
   }
 
@@ -2685,7 +2700,7 @@ export default function App() {
         items.splice(idx, 0, prevItem);
         return { ...w, list: { ...w.list, items } };
       }));
-      notify("Couldn't delete that item.");
+      notify(t("toast.couldNotDeleteItem"));
     });
   }
 
@@ -2694,9 +2709,9 @@ export default function App() {
     try {
       const { inviteCode } = await apiRegenerateInvite(gid);
       setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, inviteCode }));
-      notify("New code generated!");
+      notify(t("toast.newCodeGenerated"));
     } catch {
-      notify("Couldn't generate a new code.");
+      notify(t("toast.couldNotGenerateCode"));
     }
   }
 
@@ -2706,9 +2721,9 @@ export default function App() {
     try {
       await apiRemoveMember(gid, target.id);
       setGroups(gs => gs.map(g => g.id !== gid ? g : { ...g, members: g.members.filter(m => m.id !== target.id) }));
-      notify(`Removed ${target.name}.`);
+      notify(t("toast.removed", { name: target.name }));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't remove that member.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotRemoveMember"));
     } finally {
       setRemoveTarget(null);
     }
@@ -2720,9 +2735,9 @@ export default function App() {
     try {
       await apiLeaveGroup(gid);
       setGroups(gs => gs.filter(g => g.id !== gid));
-      notify("Left the group.");
+      notify(t("toast.leftGroup"));
     } catch (e) {
-      notify(e instanceof ApiError ? e.message : "Couldn't leave the group.");
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotLeaveGroup"));
     } finally {
       setLeaveOpen(false);
       navigate("/groups", { replace: true });
@@ -2878,10 +2893,10 @@ export default function App() {
 
               {/* ── Overlays — absolute, contained in phone frame ── */}
 
-              <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="Create a group">
+              <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title={t("sheets.createGroup.title")}>
                 <div className="space-y-5">
                   <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("common.chooseIcon")}</p>
                     <div className="grid grid-cols-5 gap-2">
                       {EMOJIS.map(e => (
                         <button
@@ -2898,24 +2913,24 @@ export default function App() {
                     </div>
                   </div>
                   <Field
-                    label="Group name"
-                    placeholder="e.g. Chen Family, Work Lunches…"
+                    label={t("sheets.createGroup.nameLabel")}
+                    placeholder={t("sheets.createGroup.namePlaceholder")}
                     value={cName}
                     onChange={e => setCName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && doCreate()}
                     autoFocus
                   />
                   <div className="flex gap-3">
-                    <Btn variant="outline" full onClick={() => setCreateOpen(false)}>Cancel</Btn>
-                    <Btn variant="primary" full onClick={doCreate} loading={creating} disabled={!cName.trim()}>Create group</Btn>
+                    <Btn variant="outline" full onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn variant="primary" full onClick={doCreate} loading={creating} disabled={!cName.trim()}>{t("sheets.createGroup.submit")}</Btn>
                   </div>
                 </div>
               </Sheet>
 
-              <Sheet open={editGroupOpen} onClose={() => setEditGroupOpen(false)} title="Edit group">
+              <Sheet open={editGroupOpen} onClose={() => setEditGroupOpen(false)} title={t("sheets.editGroup.title")}>
                 <div className="space-y-5">
                   <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("common.chooseIcon")}</p>
                     <div className="grid grid-cols-5 gap-2">
                       {EMOJIS.map(e => (
                         <button
@@ -2932,27 +2947,27 @@ export default function App() {
                     </div>
                   </div>
                   <Field
-                    label="Group name"
-                    placeholder="e.g. Chen Family, Work Lunches…"
+                    label={t("sheets.editGroup.nameLabel")}
+                    placeholder={t("sheets.editGroup.namePlaceholder")}
                     value={egName}
                     onChange={e => setEgName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && doEditGroup()}
                     autoFocus
                   />
                   <div className="flex gap-3">
-                    <Btn variant="outline" full onClick={() => setEditGroupOpen(false)}>Cancel</Btn>
-                    <Btn variant="primary" full onClick={doEditGroup} loading={egSaving} disabled={!egName.trim()}>Save</Btn>
+                    <Btn variant="outline" full onClick={() => setEditGroupOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn variant="primary" full onClick={doEditGroup} loading={egSaving} disabled={!egName.trim()}>{t("sheets.editGroup.submit")}</Btn>
                   </div>
                 </div>
               </Sheet>
 
-              <Sheet open={joinOpen} onClose={() => { setJoinOpen(false); resetJoin(); }} title="Join a group">
+              <Sheet open={joinOpen} onClose={() => { setJoinOpen(false); resetJoin(); }} title={t("sheets.joinGroup.title")}>
                 <div className="space-y-5">
                   {jStatus !== "success" ? (
                     <>
                       <Field
-                        label="Invite code"
-                        placeholder="e.g. AB7-K92"
+                        label={t("sheets.joinGroup.codeLabel")}
+                        placeholder={t("sheets.joinGroup.codePlaceholder")}
                         value={jCode}
                         onChange={e => { setJCode(e.target.value.toUpperCase()); setJStatus("idle"); setJErr(""); }}
                         onKeyDown={e => e.key === "Enter" && doJoin()}
@@ -2963,13 +2978,13 @@ export default function App() {
                       <div className="bg-primary/8 rounded-xl px-4 py-3 flex items-start gap-2.5">
                         <span className="text-base mt-0.5">💡</span>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          Ask a member to share their invite code from Settings → Invite.
+                          {t("sheets.joinGroup.hint")}
                         </p>
                       </div>
                       <div className="flex gap-3">
-                        <Btn variant="outline" full onClick={() => { setJoinOpen(false); resetJoin(); }}>Cancel</Btn>
+                        <Btn variant="outline" full onClick={() => { setJoinOpen(false); resetJoin(); }}>{t("common.cancel")}</Btn>
                         <Btn variant="primary" full onClick={doJoin} loading={jStatus === "loading"} disabled={!jCode.trim()}>
-                          Join group
+                          {t("sheets.joinGroup.submit")}
                         </Btn>
                       </div>
                     </>
@@ -2982,18 +2997,18 @@ export default function App() {
                         <CheckCircle2 className="w-9 h-9 text-emerald-500" />
                       </div>
                       <div className="text-center">
-                        <p className="font-bold text-foreground text-lg">Joined!</p>
-                        <p className="text-sm text-muted-foreground mt-1">You&apos;ve been added to the group.</p>
+                        <p className="font-bold text-foreground text-lg">{t("sheets.joinGroup.joinedTitle")}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{t("sheets.joinGroup.joinedBody")}</p>
                       </div>
                     </motion.div>
                   )}
                 </div>
               </Sheet>
 
-              <Sheet open={wCreateOpen} onClose={() => setWCreateOpen(false)} title="Create a wishlist">
+              <Sheet open={wCreateOpen} onClose={() => setWCreateOpen(false)} title={t("sheets.createWishlist.title")}>
                 <div className="space-y-5">
                   <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("common.chooseIcon")}</p>
                     <div className="grid grid-cols-5 gap-2">
                       {WISHLIST_EMOJIS.map(e => (
                         <button
@@ -3010,24 +3025,24 @@ export default function App() {
                     </div>
                   </div>
                   <Field
-                    label="Wishlist name"
-                    placeholder="e.g. Birthday, Baby shower…"
+                    label={t("sheets.createWishlist.nameLabel")}
+                    placeholder={t("sheets.createWishlist.namePlaceholder")}
                     value={wName}
                     onChange={e => setWName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && doCreateWishlist()}
                     autoFocus
                   />
                   <div className="flex gap-3">
-                    <Btn variant="outline" full onClick={() => setWCreateOpen(false)}>Cancel</Btn>
-                    <Btn variant="primary" full onClick={doCreateWishlist} loading={wCreating} disabled={!wName.trim()}>Create wishlist</Btn>
+                    <Btn variant="outline" full onClick={() => setWCreateOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn variant="primary" full onClick={doCreateWishlist} loading={wCreating} disabled={!wName.trim()}>{t("sheets.createWishlist.submit")}</Btn>
                   </div>
                 </div>
               </Sheet>
 
-              <Sheet open={wEditOpen} onClose={() => setWEditOpen(false)} title="Edit wishlist">
+              <Sheet open={wEditOpen} onClose={() => setWEditOpen(false)} title={t("sheets.editWishlist.title")}>
                 <div className="space-y-5">
                   <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">Choose an icon</p>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("common.chooseIcon")}</p>
                     <div className="grid grid-cols-5 gap-2">
                       {WISHLIST_EMOJIS.map(e => (
                         <button
@@ -3044,24 +3059,24 @@ export default function App() {
                     </div>
                   </div>
                   <Field
-                    label="Wishlist name"
-                    placeholder="e.g. Birthday, Baby shower…"
+                    label={t("sheets.editWishlist.nameLabel")}
+                    placeholder={t("sheets.editWishlist.namePlaceholder")}
                     value={weName}
                     onChange={e => setWeName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && doEditWishlist()}
                     autoFocus
                   />
                   <div className="flex gap-3">
-                    <Btn variant="outline" full onClick={() => setWEditOpen(false)}>Cancel</Btn>
-                    <Btn variant="primary" full onClick={doEditWishlist} loading={weSaving} disabled={!weName.trim()}>Save</Btn>
+                    <Btn variant="outline" full onClick={() => setWEditOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn variant="primary" full onClick={doEditWishlist} loading={weSaving} disabled={!weName.trim()}>{t("sheets.editWishlist.submit")}</Btn>
                   </div>
                 </div>
               </Sheet>
 
-              <Sheet open={wShareOpen} onClose={() => setWShareOpen(false)} title="Share wishlist">
+              <Sheet open={wShareOpen} onClose={() => setWShareOpen(false)} title={t("sheets.shareWishlist.title")}>
                 <div className="space-y-5">
                   <p className="text-sm text-muted-foreground">
-                    Anyone with this link can view the wishlist — they can&apos;t add, check off, or change anything.
+                    {t("sheets.shareWishlist.body")}
                   </p>
                   {cw?.shareToken && (
                     <div className="bg-muted rounded-xl px-4 py-3 break-all text-xs font-mono text-foreground">
@@ -3075,11 +3090,11 @@ export default function App() {
                         if (!cw?.shareToken) return;
                         const url = getWishlistShareUrl(cw.shareToken);
                         navigator.clipboard.writeText(url).catch(() => {});
-                        notify("Link copied!");
+                        notify(t("toast.linkCopied"));
                       }}
                     >
                       <Copy className="w-4 h-4" />
-                      Copy
+                      {t("sheets.shareWishlist.copy")}
                     </Btn>
                     <Btn
                       variant="primary" full
@@ -3087,11 +3102,11 @@ export default function App() {
                         if (!cw?.shareToken) return;
                         const url = getWishlistShareUrl(cw.shareToken);
                         const result = await shareWishlistLink(cw.name, url);
-                        if (result === "copied") notify("Link copied!");
+                        if (result === "copied") notify(t("toast.linkCopied"));
                       }}
                     >
                       <Share2 className="w-4 h-4" />
-                      Share
+                      {t("sheets.shareWishlist.share")}
                     </Btn>
                   </div>
                   <button
@@ -3100,49 +3115,49 @@ export default function App() {
                     className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
                   >
                     {wRegenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                    Generate a new link
+                    {t("sheets.shareWishlist.generateNewLink")}
                   </button>
                   <button
                     onClick={() => { setWShareOpen(false); setWDeleteOpen(true); }}
                     className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    Delete wishlist
+                    {t("sheets.shareWishlist.deleteWishlist")}
                   </button>
                 </div>
               </Sheet>
 
-              <Sheet open={addListOpen} onClose={() => setAddListOpen(false)} title="Add a list">
+              <Sheet open={addListOpen} onClose={() => setAddListOpen(false)} title={t("sheets.addList.title")}>
                 <div className="space-y-5">
                   <Field
-                    label="List name"
-                    placeholder="e.g. Groceries, Packing list…"
+                    label={t("sheets.addList.nameLabel")}
+                    placeholder={t("sheets.addList.namePlaceholder")}
                     value={newListName}
                     onChange={e => setNewListName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && doCreateList()}
                     autoFocus
                   />
                   <div className="flex gap-3">
-                    <Btn variant="outline" full onClick={() => setAddListOpen(false)}>Cancel</Btn>
+                    <Btn variant="outline" full onClick={() => setAddListOpen(false)}>{t("common.cancel")}</Btn>
                     <Btn variant="primary" full onClick={doCreateList} loading={creatingList} disabled={!newListName.trim()}>
-                      Create list
+                      {t("sheets.addList.submit")}
                     </Btn>
                   </div>
                 </div>
               </Sheet>
 
-              <Sheet open={addBonusCardOpen} onClose={() => setAddBonusCardOpen(false)} title="Add a bonus card">
+              <Sheet open={addBonusCardOpen} onClose={() => setAddBonusCardOpen(false)} title={t("sheets.addBonusCard.title")}>
                 <div className="space-y-5">
                   <Field
-                    label="Name"
-                    placeholder="e.g. Loyalty card, Coupon…"
+                    label={t("sheets.addBonusCard.nameLabel")}
+                    placeholder={t("sheets.addBonusCard.namePlaceholder")}
                     value={newBonusCardName}
                     onChange={e => setNewBonusCardName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && doAddBonusCard()}
                     autoFocus
                   />
                   <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">Image</p>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.addBonusCard.imageLabel")}</p>
                     <input
                       ref={bonusCardFileInputRef}
                       type="file"
@@ -3158,7 +3173,7 @@ export default function App() {
                       >
                         <img src={newBonusCardImage} alt="" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-white">Tap to change</span>
+                          <span className="text-xs font-semibold text-white">{t("common.tapToChange")}</span>
                         </div>
                       </button>
                     ) : (
@@ -3169,17 +3184,17 @@ export default function App() {
                         className="w-full h-32 rounded-2xl border-2 border-dashed border-border bg-muted/40 flex flex-col items-center justify-center gap-1.5 text-muted-foreground disabled:opacity-60"
                       >
                         {compressingBonusImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
-                        <span className="text-xs font-semibold">{compressingBonusImage ? "Processing…" : "Choose a photo"}</span>
+                        <span className="text-xs font-semibold">{compressingBonusImage ? t("common.processing") : t("common.choosePhoto")}</span>
                       </button>
                     )}
                   </div>
                   <div className="flex gap-3">
-                    <Btn variant="outline" full onClick={() => setAddBonusCardOpen(false)}>Cancel</Btn>
+                    <Btn variant="outline" full onClick={() => setAddBonusCardOpen(false)}>{t("common.cancel")}</Btn>
                     <Btn
                       variant="primary" full onClick={doAddBonusCard} loading={savingBonusCard}
                       disabled={!newBonusCardName.trim() || !newBonusCardImage}
                     >
-                      Add card
+                      {t("sheets.addBonusCard.submit")}
                     </Btn>
                   </div>
                 </div>
@@ -3187,44 +3202,44 @@ export default function App() {
 
               <Confirm
                 open={leaveOpen} onClose={() => setLeaveOpen(false)}
-                title="Leave group?"
-                body={`You'll lose access to "${cg?.name}". You can rejoin anytime with an invite code from another member.`}
-                cta="Leave group" danger onConfirm={leaveGroup}
+                title={t("confirm.leaveGroup.title")}
+                body={t("confirm.leaveGroup.body", { name: cg?.name })}
+                cta={t("confirm.leaveGroup.cta")} danger onConfirm={leaveGroup}
               />
 
               <Confirm
                 open={!!removeTarget} onClose={() => setRemoveTarget(null)}
-                title="Remove member?"
-                body={`${removeTarget?.name} will lose access to "${cg?.name}" and its shared list.`}
-                cta="Remove" danger onConfirm={confirmRemoveMember}
+                title={t("confirm.removeMember.title")}
+                body={t("confirm.removeMember.body", { memberName: removeTarget?.name, groupName: cg?.name })}
+                cta={t("confirm.removeMember.cta")} danger onConfirm={confirmRemoveMember}
               />
 
               <Confirm
                 open={!!deleteListTarget} onClose={() => setDeleteListTarget(null)}
-                title="Delete list?"
-                body={`"${deleteListTarget?.name}" and all of its items will be permanently deleted.`}
-                cta="Delete list" danger onConfirm={confirmDeleteList}
+                title={t("confirm.deleteList.title")}
+                body={t("confirm.deleteList.body", { name: deleteListTarget?.name })}
+                cta={t("confirm.deleteList.cta")} danger onConfirm={confirmDeleteList}
               />
 
               <Confirm
                 open={wRegenConfirmOpen} onClose={() => setWRegenConfirmOpen(false)}
-                title="Generate a new link?"
-                body="The old share link will stop working immediately — anyone who still has it will lose access."
-                cta="Generate new link" danger onConfirm={doRegenerateWishlistLink}
+                title={t("confirm.regenerateLink.title")}
+                body={t("confirm.regenerateLink.body")}
+                cta={t("confirm.regenerateLink.cta")} danger onConfirm={doRegenerateWishlistLink}
               />
 
               <Confirm
                 open={wDeleteOpen} onClose={() => setWDeleteOpen(false)}
-                title="Delete wishlist?"
-                body={`"${cw?.name}" and all of its items will be permanently deleted. Anyone with the share link will lose access.`}
-                cta="Delete wishlist" danger onConfirm={doDeleteWishlist}
+                title={t("confirm.deleteWishlist.title")}
+                body={t("confirm.deleteWishlist.body", { name: cw?.name })}
+                cta={t("confirm.deleteWishlist.cta")} danger onConfirm={doDeleteWishlist}
               />
 
               <Confirm
                 open={logoutOpen} onClose={() => setLogoutOpen(false)}
-                title="Sign out?"
-                body="You'll be returned to the login screen. Registered accounts can log back in anytime, or continue as a guest again."
-                cta="Sign out" onConfirm={logout}
+                title={t("confirm.signOut.title")}
+                body={t("confirm.signOut.body")}
+                cta={t("confirm.signOut.cta")} onConfirm={logout}
               />
 
               <Toast msg={toastMsg} show={toastShow} />

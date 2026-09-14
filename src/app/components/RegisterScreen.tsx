@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { ChevronLeft, UserPlus } from "lucide-react";
 import { Btn, Field } from "./ui-kit";
 import { register, storeTokens, ApiError, type ApiUser } from "../lib/api";
@@ -7,6 +8,7 @@ import { register, storeTokens, ApiError, type ApiUser } from "../lib/api";
 export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
   onBack: () => void; onSuccess: (user: ApiUser) => void; onGoLogin: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +28,7 @@ export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
       storeTokens(tokens);
       onSuccess(user);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Something went wrong. Try again.");
+      setError(e instanceof ApiError ? e.message : t("auth.genericError"));
     } finally {
       setLoading(false);
     }
@@ -49,14 +51,14 @@ export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
             <UserPlus className="w-5 h-5 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Create account</h1>
-          <p className="text-sm text-muted-foreground">Keep your groups and lists synced everywhere.</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("auth.register.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("auth.register.subtitle")}</p>
         </motion.div>
 
         <div className="space-y-4">
           <Field
-            label="Name"
-            placeholder="Alex Chen"
+            label={t("auth.register.nameLabel")}
+            placeholder={t("auth.register.namePlaceholder")}
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && emailRef.current?.focus()}
@@ -65,9 +67,9 @@ export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
           />
           <Field
             ref={emailRef}
-            label="Email"
+            label={t("auth.register.emailLabel")}
             type="email"
-            placeholder="you@example.com"
+            placeholder={t("auth.register.emailPlaceholder")}
             value={email}
             onChange={e => setEmail(e.target.value)}
             onKeyDown={e => e.key === "Enter" && pwRef.current?.focus()}
@@ -75,25 +77,25 @@ export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
           />
           <Field
             ref={pwRef}
-            label="Password"
+            label={t("auth.register.passwordLabel")}
             type="password"
-            placeholder="At least 8 characters"
+            placeholder={t("auth.register.passwordPlaceholder")}
             value={password}
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === "Enter" && submit()}
             error={error || undefined}
-            hint={!error ? "At least 8 characters" : undefined}
+            hint={!error ? t("auth.register.passwordHint") : undefined}
             autoComplete="new-password"
           />
           <Btn variant="primary" full size="lg" onClick={submit} loading={loading} disabled={!canSubmit}>
-            Create account
+            {t("auth.register.submit")}
           </Btn>
         </div>
 
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
+          {t("auth.register.haveAccount")}{" "}
           <button onClick={onGoLogin} className="font-semibold text-primary hover:underline">
-            Log in
+            {t("auth.register.loginLink")}
           </button>
         </p>
       </div>

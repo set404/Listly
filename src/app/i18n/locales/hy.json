@@ -1,0 +1,298 @@
+{
+  "common": {
+    "cancel": "Չեղարկել",
+    "confirm": "Հաստատել",
+    "save": "Պահպանել",
+    "close": "Փակել",
+    "delete": "Ջնջել",
+    "copy": "Պատճենել",
+    "share": "Կիսվել",
+    "or": "կամ",
+    "you": "Դուք",
+    "tryAgain": "Կրկին փորձել",
+    "processing": "Մշակվում է…",
+    "choosePhoto": "Ընտրել լուսանկար",
+    "tapToChange": "Հպեք՝ փոխելու համար",
+    "chooseIcon": "Ընտրեք պատկերակ",
+    "hidePassword": "Թաքցնել գաղտնաբառը",
+    "showPassword": "Ցուցադրել գաղտնաբառը"
+  },
+  "nav": {
+    "groups": "Խմբեր",
+    "wishlists": "Ցանկեր",
+    "profile": "Պրոֆիլ"
+  },
+  "boot": {
+    "connectError": "Չհաջողվեց միանալ Listly-ին։ Ստուգեք կապը և փորձեք կրկին։"
+  },
+  "auth": {
+    "genericError": "Ինչ-որ բան այն չէ։ Փորձեք կրկին։",
+    "googleError": "Google-ով մուտքը ձախողվեց։ Փորձեք կրկին։",
+    "login": {
+      "title": "Մուտք",
+      "subtitle": "Բարի վերադարձ Listly։",
+      "emailLabel": "Էլ. փոստ",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Գաղտնաբառ",
+      "submit": "Մուտք",
+      "continueWithGoogle": "Շարունակել Google-ով",
+      "continueAsGuest": "Շարունակել որպես հյուր",
+      "noAccount": "Հաշիվ չունե՞ք",
+      "registerLink": "Գրանցվել"
+    },
+    "register": {
+      "title": "Ստեղծել հաշիվ",
+      "subtitle": "Պահեք ձեր խմբերն ու ցանկերը համաժամեցված ամենուր։",
+      "nameLabel": "Անուն",
+      "namePlaceholder": "Օրինակ՝ Արամ Պետրոսյան",
+      "emailLabel": "Էլ. փոստ",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Գաղտնաբառ",
+      "passwordPlaceholder": "Առնվազն 8 նիշ",
+      "passwordHint": "Առնվազն 8 նիշ",
+      "submit": "Ստեղծել հաշիվ",
+      "haveAccount": "Արդեն ունե՞ք հաշիվ",
+      "loginLink": "Մուտք"
+    }
+  },
+  "guestRecovery": {
+    "title": "Դուք՞ եք սա",
+    "body": "Այս սարքում գտանք վերջին հյուր աշխատաշրջան՝ <b>{{name}}</b> անունով։ Վերականգնեք՝ ձեր խմբերը ետ ստանալու համար, կամ սկսեք նորից։",
+    "startFresh": "Սկսել նորից",
+    "restore": "Վերականգնել"
+  },
+  "profile": {
+    "title": "Պրոֆիլ",
+    "guestSubtitle": "Հյուր · տվյալները կապված են այս սարքին",
+    "guestBanner": "Դուք օգտագործում եք հյուրի ռեժիմը։ Մուտք գործեք գրանցված հաշվով՝ ձեր խմբերն այլ սարքերում համաժամեցնելու համար։",
+    "login": "Մուտք",
+    "appearance": "Տեսք",
+    "theme": "Թեմա",
+    "themeLight": "Լուսավոր",
+    "themeDark": "Մուգ",
+    "themeSystem": "Համակարգային",
+    "language": "Լեզու",
+    "signOut": "Դուրս գալ"
+  },
+  "listStatus": {
+    "noItems": "Առայժմ ապրանքներ չկան",
+    "allDone": "Ամեն ինչ պատրաստ է ✓",
+    "left": "{{count}} մնացել է"
+  },
+  "groups": {
+    "title": "Իմ խմբերը",
+    "join": "Միանալ",
+    "emptyTitle": "Առայժմ խմբեր չկան",
+    "emptyBody": "Ստեղծեք մեկը կամ միացեք հրավերի կոդով։",
+    "createGroup": "Ստեղծել խումբ",
+    "listCount_one": "{{count}} ցանկ",
+    "listCount_other": "{{count}} ցանկ",
+    "activeList": "Ակտիվ ցանկ",
+    "addListAria": "Ավելացնել ցանկ {{name}}-ին"
+  },
+  "wishlists": {
+    "title": "Ցանկեր",
+    "emptyTitle": "Առայժմ ցանկեր չկան",
+    "emptyBody": "Ստեղծեք մեկը և կիսվեք միայն դիտման հղումով։",
+    "createWishlist": "Ստեղծել ցանկ"
+  },
+  "listCard": {
+    "deleteAria": "Ջնջել {{name}}"
+  },
+  "listsScreen": {
+    "emptyTitle": "Առայժմ ցուցակներ չկան",
+    "emptyBody": "Ստեղծեք ձեր առաջին ցուցակը՝ ապրանքներ ավելացնելու համար։",
+    "addList": "Ավելացնել ցուցակ",
+    "activeListLabel": "Ակտիվ ցուցակ",
+    "allListsLabel": "Բոլոր ցուցակները",
+    "defaultListName": "Ցուցակ {{date}}"
+  },
+  "itemRow": {
+    "markComplete": "Նշել որպես կատարված",
+    "markIncomplete": "Նշել որպես չկատարված",
+    "viewPhoto": "Դիտել լուսանկարը",
+    "addPhoto": "Ավելացնել լուսանկար",
+    "deleteAria": "Ջնջել {{text}}",
+    "close": "Փակել"
+  },
+  "quickAdd": {
+    "placeholder": "Ավելացնել ապրանք…",
+    "removePhoto": "Հեռացնել լուսանկարը",
+    "attachPhoto": "Կցել լուսանկար"
+  },
+  "listScreen": {
+    "editNameIcon": "Խմբագրել անունը և պատկերակը",
+    "share": "Կիսվել",
+    "empty": "Առայժմ ոչինչ չկա այստեղ — ավելացրեք ձեր առաջին ապրանքը ներքևում։",
+    "allDoneTitle": "Ամեն ինչ պատրաստ է!",
+    "allDoneBody": "Բոլոր ապրանքները նշված են։",
+    "completed": "Կատարված"
+  },
+  "members": {
+    "title": "Անդամներ",
+    "removeAria": "Հեռացնել {{name}}-ին"
+  },
+  "invite": {
+    "title": "Հրավիրել անդամների",
+    "shareCodeIntro": "Կիսվեք այս կոդով՝ մարդկանց հրավիրելու համար",
+    "inviteCode": "Հրավերի կոդ",
+    "copied": "Պատճենվեց!",
+    "copyCode": "Պատճենել կոդը",
+    "share": "Կիսվել",
+    "shareTitle": "Միացեք {{name}} խմբին Listly-ում",
+    "shareText": "Օգտագործեք {{code}} կոդը՝ միանալու համար։",
+    "hint": "Խմբի ցանկացած անդամ կարող է հրավիրել նոր անդամների այս կոդով։ Ստեղծեք նոր կոդ՝ հասանելիությունը չեղարկելու համար։",
+    "generateNewCode": "Ստեղծել նոր կոդ"
+  },
+  "settings": {
+    "title": "Կարգավորումներ",
+    "membersCount": "{{count}} անդամ",
+    "youAreAdmin": " · Դուք ադմինիստրատորն եք",
+    "groupSection": "Խումբ",
+    "editGroup": "Խմբագրել խումբը",
+    "editGroupSub": "Փոխել անունը կամ պատկերակը",
+    "membersLabel": "Անդամներ",
+    "peopleCount": "{{count}} մարդ",
+    "inviteMembers": "Հրավիրել անդամների",
+    "inviteMembersSub": "Կիսվեք կոդով՝ ուրիշներին ավելացնելու համար",
+    "leaveGroup": "Լքել խումբը"
+  },
+  "publicWishlist": {
+    "invalidTitle": "Այս հղումն այլևս վավեր չէ",
+    "invalidBody": "Այն կարող է հետկանչված լինել, կամ ցանկը ջնջվել է։",
+    "empty": "Այս ցանկը դատարկ է։",
+    "footer": "Կիսված է Listly-ի միջոցով · միայն դիտում"
+  },
+  "bonusCard": {
+    "addAria": "Ավելացնել բոնուսային քարտ",
+    "add": "Ավելացնել",
+    "close": "Փակել",
+    "delete": "Ջնջել"
+  },
+  "sheets": {
+    "createGroup": {
+      "title": "Ստեղծել խումբ",
+      "nameLabel": "Խմբի անուն",
+      "namePlaceholder": "Օրինակ՝ Պետրոսյանների ընտանիք, Աշխատանքային ճաշեր…",
+      "submit": "Ստեղծել խումբ"
+    },
+    "editGroup": {
+      "title": "Խմբագրել խումբը",
+      "nameLabel": "Խմբի անուն",
+      "namePlaceholder": "Օրինակ՝ Պետրոսյանների ընտանիք, Աշխատանքային ճաշեր…",
+      "submit": "Պահպանել"
+    },
+    "joinGroup": {
+      "title": "Միանալ խմբին",
+      "codeLabel": "Հրավերի կոդ",
+      "codePlaceholder": "Օրինակ՝ AB7-K92",
+      "hint": "Խնդրեք անդամին կիսվել իրենց հրավերի կոդով Կարգավորումներ → Հրավեր բաժնից։",
+      "submit": "Միանալ խմբին",
+      "joinedTitle": "Դուք միացաք!",
+      "joinedBody": "Դուք ավելացվել եք խմբին։"
+    },
+    "createWishlist": {
+      "title": "Ստեղծել ցանկ",
+      "nameLabel": "Ցանկի անուն",
+      "namePlaceholder": "Օրինակ՝ Ծնունդ, Երեխայի ընդունելություն…",
+      "submit": "Ստեղծել ցանկ"
+    },
+    "editWishlist": {
+      "title": "Խմբագրել ցանկը",
+      "nameLabel": "Ցանկի անուն",
+      "namePlaceholder": "Օրինակ՝ Ծնունդ, Երեխայի ընդունելություն…",
+      "submit": "Պահպանել"
+    },
+    "shareWishlist": {
+      "title": "Կիսվել ցանկով",
+      "body": "Ցանկացած մարդ, ով ունի այս հղումը, կարող է դիտել ցանկը — նրանք չեն կարող ավելացնել, նշել կամ փոփոխել որևէ բան։",
+      "copy": "Պատճենել",
+      "share": "Կիսվել",
+      "generateNewLink": "Ստեղծել նոր հղում",
+      "deleteWishlist": "Ջնջել ցանկը"
+    },
+    "addList": {
+      "title": "Ավելացնել ցուցակ",
+      "nameLabel": "Ցուցակի անուն",
+      "namePlaceholder": "Օրինակ՝ Գնումներ, Ճամպրուկի ցուցակ…",
+      "submit": "Ստեղծել ցուցակ"
+    },
+    "addBonusCard": {
+      "title": "Ավելացնել բոնուսային քարտ",
+      "nameLabel": "Անուն",
+      "namePlaceholder": "Օրինակ՝ Հավատարմության քարտ, Կտրոն…",
+      "imageLabel": "Նկար",
+      "submit": "Ավելացնել քարտ"
+    }
+  },
+  "confirm": {
+    "leaveGroup": {
+      "title": "Լքե՞լ խումբը",
+      "body": "Դուք կկորցնեք հասանելիությունը «{{name}}»-ին։ Կարող եք կրկին միանալ ցանկացած պահի՝ մեկ այլ անդամի հրավերի կոդով։",
+      "cta": "Լքել խումբը"
+    },
+    "removeMember": {
+      "title": "Հեռացնե՞լ անդամին",
+      "body": "{{memberName}}-ը կկորցնի հասանելիությունը «{{groupName}}»-ին և դրա ընդհանուր ցուցակին։",
+      "cta": "Հեռացնել"
+    },
+    "deleteList": {
+      "title": "Ջնջե՞լ ցուցակը",
+      "body": "«{{name}}»-ը և դրա բոլոր ապրանքները վերջնականապես կջնջվեն։",
+      "cta": "Ջնջել ցուցակը"
+    },
+    "regenerateLink": {
+      "title": "Ստեղծե՞լ նոր հղում",
+      "body": "Հին հղումն անմիջապես կդադարի աշխատել — ցանկացած մեկը, ով դեռ ունի այն, կկորցնի հասանելիությունը։",
+      "cta": "Ստեղծել նոր հղում"
+    },
+    "deleteWishlist": {
+      "title": "Ջնջե՞լ ցանկը",
+      "body": "«{{name}}»-ը և դրա բոլոր ապրանքները վերջնականապես կջնջվեն։ Ցանկացած մեկը, ով ունի հղումը, կկորցնի հասանելիությունը։",
+      "cta": "Ջնջել ցանկը"
+    },
+    "signOut": {
+      "title": "Դուրս գա՞լ",
+      "body": "Դուք կվերադառնաք մուտքի էկրան։ Գրանցված հաշիվները կարող են կրկին մուտք գործել ցանկացած պահի, կամ շարունակել որպես հյուր։",
+      "cta": "Դուրս գալ"
+    }
+  },
+  "toast": {
+    "refreshFailed": "Չհաջողվեց թարմացնել — ստուգեք կապը։",
+    "welcome": "Բարի գալուստ, {{name}}!",
+    "sessionMissing": "Նախ անհրաժեշտ է աշխատաշրջան — փորձեք վերաբեռնել։",
+    "created": "«{{name}}»-ը ստեղծվեց!",
+    "couldNotCreateGroup": "Չհաջողվեց ստեղծել խումբը։",
+    "groupUpdated": "Խումբը թարմացվեց!",
+    "couldNotUpdateGroup": "Չհաջողվեց թարմացնել խումբը։",
+    "joined": "Դուք միացաք «{{name}}»-ին!",
+    "invalidCode": "Սխալ կոդ։ Ստուգեք և փորձեք կրկին։",
+    "couldNotCreateWishlist": "Չհաջողվեց ստեղծել ցանկը։",
+    "newLinkGenerated": "Նոր հղում ստեղծվեց — հինն այլևս չի աշխատում։",
+    "couldNotGenerateLink": "Չհաջողվեց ստեղծել նոր հղում։",
+    "wishlistUpdated": "Ցանկը թարմացվեց!",
+    "couldNotUpdateWishlist": "Չհաջողվեց թարմացնել ցանկը։",
+    "wishlistDeleted": "Ցանկը ջնջվեց։",
+    "couldNotDeleteWishlist": "Չհաջողվեց ջնջել ցանկը։",
+    "couldNotCreateList": "Չհաջողվեց ստեղծել ցուցակը։",
+    "deleted": "«{{name}}»-ը ջնջվեց։",
+    "couldNotDeleteList": "Չհաջողվեց ջնջել ցուցակը։",
+    "couldNotProcessPhoto": "Չհաջողվեց մշակել այդ լուսանկարը։",
+    "added": "«{{name}}»-ը ավելացվեց!",
+    "couldNotAddBonusCard": "Չհաջողվեց ավելացնել այդ բոնուսային քարտը։",
+    "couldNotDeleteBonusCard": "Չհաջողվեց ջնջել այդ բոնուսային քարտը։",
+    "couldNotUpdateItem": "Չհաջողվեց թարմացնել այդ ապրանքը։",
+    "couldNotAddPhoto": "Չհաջողվեց ավելացնել այդ լուսանկարը։",
+    "couldNotAddItem": "Չհաջողվեց ավելացնել այդ ապրանքը։",
+    "couldNotDeleteItem": "Չհաջողվեց ջնջել այդ ապրանքը։",
+    "removed": "{{name}}-ը հեռացվեց։",
+    "couldNotRemoveMember": "Չհաջողվեց հեռացնել այդ անդամին։",
+    "leftGroup": "Լքեցիք խումբը։",
+    "couldNotLeaveGroup": "Չհաջողվեց լքել խումբը։",
+    "newCodeGenerated": "Նոր կոդ ստեղծվեց!",
+    "couldNotGenerateCode": "Չհաջողվեց ստեղծել նոր կոդ։",
+    "linkCopied": "Հղումը պատճենվեց!",
+    "couldNotStartGuest": "Չհաջողվեց սկսել հյուրի աշխատաշրջան։ Փորձեք կրկին։",
+    "couldNotRestoreSession": "Չհաջողվեց վերականգնել ձեր աշխատաշրջանը։ Փորձեք կրկին։"
+  }
+}

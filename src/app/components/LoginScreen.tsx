@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, ChevronLeft, LogIn, UserRound } from "lucide-react";
 import { Btn, Field } from "./ui-kit";
 import { login, loginWithGoogle, storeTokens, ApiError, type ApiUser } from "../lib/api";
@@ -9,6 +10,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
   showBack?: boolean; onBack: () => void; onSuccess: (user: ApiUser) => void; onGoRegister: () => void;
   onContinueAsGuest: () => void; guestLoading?: boolean;
 }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
       storeTokens(tokens);
       onSuccess(user);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Something went wrong. Try again.");
+      setError(e instanceof ApiError ? e.message : t("auth.genericError"));
     } finally {
       setLoading(false);
     }
@@ -41,7 +43,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
       storeTokens(tokens);
       onSuccess(user);
     } catch (e) {
-      setGoogleError(e instanceof ApiError || e instanceof Error ? e.message : "Google sign-in failed. Try again.");
+      setGoogleError(e instanceof ApiError || e instanceof Error ? e.message : t("auth.googleError"));
     } finally {
       setGoogleLoading(false);
     }
@@ -66,15 +68,15 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
             <LogIn className="w-5 h-5 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Log in</h1>
-          <p className="text-sm text-muted-foreground">Welcome back to Listly.</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("auth.login.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("auth.login.subtitle")}</p>
         </motion.div>
 
         <div className="space-y-4">
           <Field
-            label="Email"
+            label={t("auth.login.emailLabel")}
             type="email"
-            placeholder="you@example.com"
+            placeholder={t("auth.login.emailPlaceholder")}
             value={email}
             onChange={e => setEmail(e.target.value)}
             onKeyDown={e => e.key === "Enter" && pwRef.current?.focus()}
@@ -83,7 +85,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
           />
           <Field
             ref={pwRef}
-            label="Password"
+            label={t("auth.login.passwordLabel")}
             type="password"
             placeholder="••••••••"
             value={password}
@@ -93,20 +95,20 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
             autoComplete="current-password"
           />
           <Btn variant="primary" full size="lg" onClick={submit} loading={loading} disabled={!email.trim() || !password}>
-            Log in
+            {t("auth.login.submit")}
           </Btn>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">or</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">{t("common.or")}</span>
           <div className="h-px flex-1 bg-border" />
         </div>
 
         <div className="space-y-2">
           <Btn variant="outline" full size="lg" onClick={submitGoogle} loading={googleLoading}>
             <GoogleIcon className="w-4 h-4" />
-            Continue with Google
+            {t("auth.login.continueWithGoogle")}
           </Btn>
           {googleError && (
             <p className="text-xs text-red-500 flex items-center gap-1.5 justify-center">
@@ -117,13 +119,13 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
 
         <Btn variant="outline" full size="lg" onClick={onContinueAsGuest} loading={guestLoading}>
           <UserRound className="w-4 h-4" />
-          Continue as guest
+          {t("auth.login.continueAsGuest")}
         </Btn>
 
         <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
+          {t("auth.login.noAccount")}{" "}
           <button onClick={onGoRegister} className="font-semibold text-primary hover:underline">
-            Register
+            {t("auth.login.registerLink")}
           </button>
         </p>
       </div>

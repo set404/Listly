@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import { Trans, useTranslation } from "react-i18next";
 import { UserRound } from "lucide-react";
 import { Btn } from "./ui-kit";
 import type { RecoveryCandidate } from "../lib/auth";
@@ -9,6 +10,7 @@ export function GuestRecoveryPrompt({ candidate, loading, onAccept, onDecline }:
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <AnimatePresence>
       {candidate && (
@@ -29,15 +31,18 @@ export function GuestRecoveryPrompt({ candidate, loading, onAccept, onDecline }:
               <UserRound className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="font-bold text-foreground text-base mb-1.5">Is this you?</p>
+              <p className="font-bold text-foreground text-base mb-1.5">{t("guestRecovery.title")}</p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                We found a recent guest session for <span className="font-semibold text-foreground">{candidate.name}</span> on
-                this device. Restore it to get your groups back, or start fresh.
+                <Trans
+                  i18nKey="guestRecovery.body"
+                  values={{ name: candidate.name }}
+                  components={{ b: <span className="font-semibold text-foreground" /> }}
+                />
               </p>
             </div>
             <div className="flex gap-3 w-full mt-1">
-              <Btn variant="outline" full onClick={onDecline} disabled={loading}>Start fresh</Btn>
-              <Btn variant="primary" full onClick={onAccept} loading={loading}>Restore</Btn>
+              <Btn variant="outline" full onClick={onDecline} disabled={loading}>{t("guestRecovery.startFresh")}</Btn>
+              <Btn variant="primary" full onClick={onAccept} loading={loading}>{t("guestRecovery.restore")}</Btn>
             </div>
           </motion.div>
         </>

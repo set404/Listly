@@ -1,5 +1,6 @@
 import { forwardRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, Eye, EyeOff, Loader2, X } from "lucide-react";
 
 // ─── Safe area insets (Android nav/status bar, iOS notch/home indicator) ──────
@@ -98,6 +99,7 @@ export const Field = forwardRef<
   HTMLInputElement,
   React.InputHTMLAttributes<HTMLInputElement> & { label?: string; error?: string; hint?: string }
 >(({ label, error, hint, className = "", type, ...p }, ref) => {
+  const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password";
 
@@ -115,7 +117,7 @@ export const Field = forwardRef<
           <button
             type="button"
             onClick={() => setShowPassword(s => !s)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
             className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground transition-colors"
           >
             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -183,10 +185,11 @@ export function Sheet({ open, onClose, title, children }: {
 
 // ─── Confirm Dialog (absolute-positioned) ────────────────────────────────────
 
-export function Confirm({ open, onClose, title, body, cta = "Confirm", danger, onConfirm }: {
+export function Confirm({ open, onClose, title, body, cta, danger, onConfirm }: {
   open: boolean; onClose: () => void; title: string; body: string;
   cta?: string; danger?: boolean; onConfirm: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <AnimatePresence>
       {open && (
@@ -207,8 +210,8 @@ export function Confirm({ open, onClose, title, body, cta = "Confirm", danger, o
             <p className="font-bold text-foreground text-base mb-2">{title}</p>
             <p className="text-sm text-muted-foreground leading-relaxed mb-6">{body}</p>
             <div className="flex gap-3">
-              <Btn variant="outline" full onClick={onClose}>Cancel</Btn>
-              <Btn variant={danger ? "danger" : "primary"} full onClick={onConfirm}>{cta}</Btn>
+              <Btn variant="outline" full onClick={onClose}>{t("common.cancel")}</Btn>
+              <Btn variant={danger ? "danger" : "primary"} full onClick={onConfirm}>{cta ?? t("common.confirm")}</Btn>
             </div>
           </motion.div>
         </>

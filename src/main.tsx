@@ -2,6 +2,7 @@
   import { createRoot } from "react-dom/client";
   import { HashRouter } from "react-router";
   import App from "./app/App.tsx";
+  import "./app/i18n";
   import "./styles/index.css";
 
   declare global {

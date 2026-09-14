@@ -339,6 +339,16 @@ export function deleteItem(listId: string, itemId: string) {
   return apiFetch<void>(`/lists/${listId}/items/${itemId}`, { method: "DELETE" });
 }
 
+// itemIds may be any subset of the list's items (only the active ones are
+// ever reordered) — the server places them first, in this order, ahead of
+// everything else.
+export function reorderItems(listId: string, itemIds: string[]) {
+  return apiFetch<void>(`/lists/${listId}/items/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify({ itemIds }),
+  });
+}
+
 // ─── Wishlists ──────────────────────────────────────────────────────────────
 
 export function listWishlists() {

@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import type { TouchEvent as ReactTouchEvent, TouchList as ReactTouchList } from "react";
 import { useNavigate, useLocation, useNavigationType } from "react-router";
-import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate } from "motion/react";
+import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate, Reorder, useDragControls } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { hy as hyLocale } from "date-fns/locale";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
   Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
-  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X,
+  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, SAFE_AREA_TOP, SAFE_AREA_BOTTOM, type Member, type ThemeMode } from "./components/ui-kit";
 import { LoginScreen } from "./components/LoginScreen";
@@ -39,6 +39,7 @@ import {
   deleteList as apiDeleteList,
   addItem as apiAddItem,
   updateItem as apiUpdateItem,
+  reorderItems as apiReorderItems,
   deleteItem as apiDeleteItem,
   logout as apiLogout,
   listWishlists as apiListWishlists,
@@ -212,6 +213,17 @@ function mapList(l: ApiList): ListSummary {
     createdAt: Date.parse(l.createdAt),
     items: l.items.map(mapItem),
   };
+}
+
+// Puts the items named in `orderedIds` first, in that order, followed by
+// every other item unchanged — used for the manual-reorder drag gesture,
+// which only ever reorders the active (incomplete) subset of a list.
+function reorderItemsArray(items: ListItem[], orderedIds: string[]): ListItem[] {
+  const byId = new Map(items.map(i => [i.id, i]));
+  const reordered = orderedIds.map(id => byId.get(id)).filter((i): i is ListItem => !!i);
+  const orderedIdSet = new Set(orderedIds);
+  const rest = items.filter(i => !orderedIdSet.has(i.id));
+  return [...reordered, ...rest];
 }
 
 function mapBonusCard(c: ApiBonusCard): BonusCardVM {
@@ -1047,8 +1059,9 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
 
 // ─── List item row ────────────────────────────────────────────────────────────
 
-function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
-  item: ListItem; onToggle: () => void; onEdit: (text: string) => void; onDelete: () => void;
+function ItemRow({ item, reorderable, onDragEnd, onToggle, onEdit, onDelete, onSetImage }: {
+  item: ListItem; reorderable?: boolean; onDragEnd?: () => void;
+  onToggle: () => void; onEdit: (text: string) => void; onDelete: () => void;
   onSetImage: (imageUrl: string) => void;
 }) {
   const { t } = useTranslation();
@@ -1058,6 +1071,7 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
   const [attachingPhoto, setAttachingPhoto] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragControls = useDragControls();
 
   function startEdit() {
     setDraft(item.text);
@@ -1086,15 +1100,27 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
     }
   }
 
-  return (
-    <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: item.completed ? 0.6 : 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className={`flex items-center gap-3.5 py-3.5 px-1 rounded-xl transition-colors ${!item.completed ? "hover:bg-muted/40" : ""}`}
-    >
+  const rowProps = {
+    layout: "position" as const,
+    initial: { opacity: 0, y: -6 },
+    animate: { opacity: item.completed ? 0.6 : 1, y: 0 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.2 },
+    className: `flex items-center gap-3.5 py-3.5 px-1 rounded-xl transition-colors ${!item.completed ? "hover:bg-muted/40" : ""}`,
+  };
+
+  const content = (
+    <>
+      {reorderable && (
+        <button
+          type="button"
+          onPointerDown={e => dragControls.start(e)}
+          aria-label={t("itemRow.reorder")}
+          className="flex-shrink-0 w-5 h-5 -ml-1 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+      )}
       <button
         onClick={onToggle}
         type="button"
@@ -1215,8 +1241,17 @@ function ItemRow({ item, onToggle, onEdit, onDelete, onSetImage }: {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </>
   );
+
+  if (reorderable) {
+    return (
+      <Reorder.Item value={item.clientId} dragListener={false} dragControls={dragControls} onDragEnd={onDragEnd} {...rowProps}>
+        {content}
+      </Reorder.Item>
+    );
+  }
+  return <motion.div {...rowProps}>{content}</motion.div>;
 }
 
 // ─── Quick-add row (sits right after the last checkbox) ────────────────────────
@@ -1303,7 +1338,10 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard, onShare, onRename, onDelete }: {
+function ListScreen({
+  group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard,
+  onShare, onRename, onDelete, onReorderPreview, onReorderCommit,
+}: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
@@ -1311,6 +1349,7 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
   onSetImage: (id: string, imageUrl: string) => void;
   onAddBonusCard?: () => void; onDeleteBonusCard?: (cardId: string) => void;
   onShare?: () => void; onRename?: () => void; onDelete?: () => void;
+  onReorderPreview: (orderedIds: string[]) => void; onReorderCommit: () => void;
 }) {
   const { t } = useTranslation();
   const active = list.items.filter(i => !i.completed);
@@ -1400,15 +1439,18 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
             </div>
           )}
           <LayoutGroup>
-            <AnimatePresence initial={false}>
-              {active.map(item => (
-                <ItemRow
-                  key={item.clientId} item={item} onToggle={() => onToggle(item.id)}
-                  onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
-                  onSetImage={url => onSetImage(item.id, url)}
-                />
-              ))}
-            </AnimatePresence>
+            <Reorder.Group as="div" axis="y" values={active.map(i => i.clientId)} onReorder={onReorderPreview}>
+              <AnimatePresence initial={false}>
+                {active.map(item => (
+                  <ItemRow
+                    key={item.clientId} item={item} reorderable onDragEnd={onReorderCommit}
+                    onToggle={() => onToggle(item.id)}
+                    onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
+                    onSetImage={url => onSetImage(item.id, url)}
+                  />
+                ))}
+              </AnimatePresence>
+            </Reorder.Group>
 
             <QuickAddRow onAdd={onAdd} />
 
@@ -2129,12 +2171,19 @@ export default function App() {
         lists: g.lists.map(l => l.id !== listId ? l : { ...l, items: l.items.filter(i => i.id !== itemId) }),
       }));
     }
+    function onItemsReordered({ listId, itemIds }: { listId: string; itemIds: string[] }) {
+      patchGroup(g => ({
+        ...g,
+        lists: g.lists.map(l => l.id !== listId ? l : { ...l, items: reorderItemsArray(l.items, itemIds) }),
+      }));
+    }
 
     socket.on("list:created", onListCreated);
     socket.on("list:deleted", onListDeleted);
     socket.on("item:created", onItemCreated);
     socket.on("item:updated", onItemUpdated);
     socket.on("item:deleted", onItemDeleted);
+    socket.on("items:reordered", onItemsReordered);
 
     return () => {
       socket.off("connect", onConnect);
@@ -2144,6 +2193,7 @@ export default function App() {
       socket.off("item:created", onItemCreated);
       socket.off("item:updated", onItemUpdated);
       socket.off("item:deleted", onItemDeleted);
+      socket.off("items:reordered", onItemsReordered);
       leaveGroupRoom(gid);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2564,6 +2614,25 @@ export default function App() {
     });
   }
 
+  // Fires live as the user drags (updates local order immediately for a
+  // smooth visual re-sort); the actual PATCH only goes out once, from
+  // commitItemsReorder, when the drag gesture ends.
+  function reorderItemsPreview(orderedIds: string[]) {
+    if (!gid || !lid) return;
+    setGroups(gs => gs.map(g => g.id !== gid ? g : {
+      ...g,
+      lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: reorderItemsArray(l.items, orderedIds) }),
+    }));
+  }
+
+  function commitItemsReorder() {
+    if (!gid || !lid) return;
+    const list = cg?.lists.find(l => l.id === lid);
+    if (!list) return;
+    const orderedIds = list.items.filter(i => !i.completed).map(i => i.id);
+    apiReorderItems(lid, orderedIds).catch(() => notify(t("toast.couldNotReorderItems")));
+  }
+
   function addItem(text: string, imageUrl?: string) {
     if (!gid || !lid) return;
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -2696,6 +2765,20 @@ export default function App() {
       }));
       notify(t("toast.couldNotAddPhoto"));
     });
+  }
+
+  function reorderWishlistItemsPreview(orderedIds: string[]) {
+    if (!wid || !cw?.list) return;
+    setWishlists(ws => ws.map(w => w.id !== wid || !w.list ? w : {
+      ...w, list: { ...w.list, items: reorderItemsArray(w.list.items, orderedIds) },
+    }));
+  }
+
+  function commitWishlistItemsReorder() {
+    if (!wid || !cw?.list) return;
+    const listId = cw.list.id;
+    const orderedIds = cw.list.items.filter(i => !i.completed).map(i => i.id);
+    apiReorderItems(listId, orderedIds).catch(() => notify(t("toast.couldNotReorderItems")));
   }
 
   function addWishlistItem(text: string, imageUrl?: string) {
@@ -2886,6 +2969,8 @@ export default function App() {
                       onShare={() => setWShareOpen(true)}
                       onRename={openEditWishlist}
                       onDelete={() => setWDeleteOpen(true)}
+                      onReorderPreview={reorderWishlistItemsPreview}
+                      onReorderCommit={commitWishlistItemsReorder}
                     />
                   )}
                   {screen === "profile" && currentUser && (
@@ -2913,6 +2998,8 @@ export default function App() {
                       onSetImage={setItemImage}
                       onAddBonusCard={() => gid && openAddBonusCard(gid)}
                       onDeleteBonusCard={deleteBonusCard}
+                      onReorderPreview={reorderItemsPreview}
+                      onReorderCommit={commitItemsReorder}
                     />
                   )}
                   {screen === "members" && cg && (

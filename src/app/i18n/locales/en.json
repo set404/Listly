@@ -113,7 +113,8 @@
     "viewPhoto": "View photo",
     "addPhoto": "Add a photo",
     "deleteAria": "Delete {{text}}",
-    "close": "Close"
+    "close": "Close",
+    "reorder": "Drag to reorder"
   },
   "quickAdd": {
     "placeholder": "Add item…",
@@ -297,6 +298,7 @@
     "couldNotAddPhoto": "Couldn't add that photo.",
     "couldNotAddItem": "Couldn't add that item.",
     "couldNotDeleteItem": "Couldn't delete that item.",
+    "couldNotReorderItems": "Couldn't save the new order.",
     "removed": "Removed {{name}}.",
     "couldNotRemoveMember": "Couldn't remove that member.",
     "leftGroup": "Left the group.",

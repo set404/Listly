@@ -113,7 +113,8 @@
     "viewPhoto": "Դիտել լուսանկարը",
     "addPhoto": "Ավելացնել լուսանկար",
     "deleteAria": "Ջնջել {{text}}",
-    "close": "Փակել"
+    "close": "Փակել",
+    "reorder": "Քաշեք՝ վերադասավորելու համար"
   },
   "quickAdd": {
     "placeholder": "Ավելացնել ապրանք…",
@@ -297,6 +298,7 @@
     "couldNotAddPhoto": "Չհաջողվեց ավելացնել այդ լուսանկարը։",
     "couldNotAddItem": "Չհաջողվեց ավելացնել այդ ապրանքը։",
     "couldNotDeleteItem": "Չհաջողվեց ջնջել այդ ապրանքը։",
+    "couldNotReorderItems": "Չհաջողվեց պահպանել նոր հերթականությունը։",
     "removed": "{{name}}-ը հեռացվեց։",
     "couldNotRemoveMember": "Չհաջողվեց հեռացնել այդ անդամին։",
     "leftGroup": "Լքեցիք խումբը։",

@@ -155,7 +155,8 @@
     "peopleCount": "{{count}} people",
     "inviteMembers": "Invite members",
     "inviteMembersSub": "Share a code to add others",
-    "leaveGroup": "Leave group"
+    "leaveGroup": "Leave group",
+    "deleteGroup": "Delete group"
   },
   "publicWishlist": {
     "invalidTitle": "This link isn't valid anymore",
@@ -236,6 +237,11 @@
       "body": "{{memberName}} will lose access to \"{{groupName}}\" and its shared list.",
       "cta": "Remove"
     },
+    "deleteGroup": {
+      "title": "Delete group?",
+      "body": "\"{{name}}\" will be permanently deleted for everyone, along with its lists, items, and bonus cards.",
+      "cta": "Delete group"
+    },
     "deleteList": {
       "title": "Delete list?",
       "body": "\"{{name}}\" and all of its items will be permanently deleted.",
@@ -289,6 +295,8 @@
     "couldNotRemoveMember": "Couldn't remove that member.",
     "leftGroup": "Left the group.",
     "couldNotLeaveGroup": "Couldn't leave the group.",
+    "groupDeleted": "Group deleted.",
+    "couldNotDeleteGroup": "Couldn't delete the group.",
     "newCodeGenerated": "New code generated!",
     "couldNotGenerateCode": "Couldn't generate a new code.",
     "linkCopied": "Link copied!",

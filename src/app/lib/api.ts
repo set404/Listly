@@ -283,6 +283,10 @@ export function leaveGroup(groupId: string) {
   return apiFetch<void>(`/groups/${groupId}/leave`, { method: "DELETE" });
 }
 
+export function deleteGroup(groupId: string) {
+  return apiFetch<void>(`/groups/${groupId}`, { method: "DELETE" });
+}
+
 export function removeMember(groupId: string, userId: string) {
   return apiFetch<void>(`/groups/${groupId}/members/${userId}`, { method: "DELETE" });
 }

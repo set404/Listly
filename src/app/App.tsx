@@ -30,6 +30,7 @@ import {
   updateGroup as apiUpdateGroup,
   joinGroup as apiJoinGroup,
   leaveGroup as apiLeaveGroup,
+  deleteGroup as apiDeleteGroup,
   removeMember as apiRemoveMember,
   regenerateInvite as apiRegenerateInvite,
   addBonusCard as apiAddBonusCard,
@@ -1613,8 +1614,9 @@ function SettingsRow({ icon, label, sub, danger, onClick }: {
   );
 }
 
-function SettingsScreen({ group, onBack, onEdit, onMembers, onInvite, onLeave }: {
-  group: Group; onBack: () => void; onEdit: () => void; onMembers: () => void; onInvite: () => void; onLeave: () => void;
+function SettingsScreen({ group, isAdmin, onBack, onEdit, onMembers, onInvite, onLeave, onDelete }: {
+  group: Group; isAdmin: boolean; onBack: () => void; onEdit: () => void; onMembers: () => void;
+  onInvite: () => void; onLeave: () => void; onDelete: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -1654,6 +1656,9 @@ function SettingsScreen({ group, onBack, onEdit, onMembers, onInvite, onLeave }:
         <section>
           <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
             <SettingsRow icon={<LogOut className="w-full h-full" />} label={t("settings.leaveGroup")} danger onClick={onLeave} />
+            {isAdmin && (
+              <SettingsRow icon={<Trash2 className="w-full h-full" />} label={t("settings.deleteGroup")} danger onClick={onDelete} />
+            )}
           </div>
         </section>
       </div>
@@ -2132,6 +2137,7 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
@@ -2433,7 +2439,7 @@ export default function App() {
   // before they touch navigation at all, matching how a native app back
   // press is expected to behave.
   const anyModalOpen = createOpen || joinOpen || editGroupOpen || addListOpen || addBonusCardOpen
-    || leaveOpen || logoutOpen || !!removeTarget || !!deleteListTarget
+    || leaveOpen || deleteGroupOpen || logoutOpen || !!removeTarget || !!deleteListTarget
     || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen;
 
   function closeAllModals() {
@@ -2443,6 +2449,7 @@ export default function App() {
     setAddListOpen(false);
     setAddBonusCardOpen(false);
     setLeaveOpen(false);
+    setDeleteGroupOpen(false);
     setLogoutOpen(false);
     setRemoveTarget(null);
     setDeleteListTarget(null);
@@ -2744,6 +2751,20 @@ export default function App() {
     }
   }
 
+  async function doDeleteGroup() {
+    if (!gid) return;
+    try {
+      await apiDeleteGroup(gid);
+      setGroups(gs => gs.filter(g => g.id !== gid));
+      notify(t("toast.groupDeleted"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotDeleteGroup"));
+    } finally {
+      setDeleteGroupOpen(false);
+      navigate("/groups", { replace: true });
+    }
+  }
+
   async function logout() {
     setLogoutOpen(false);
     await apiLogout().catch(() => {});
@@ -2874,10 +2895,11 @@ export default function App() {
                   {screen === "invite" && cg && <InviteScreen group={cg} onBack={back} onNewCode={regenCode} />}
                   {screen === "settings" && cg && (
                     <SettingsScreen
-                      group={cg} onBack={back}
+                      group={cg} isAdmin={isAdmin} onBack={back}
                       onEdit={() => openEditGroup()}
                       onMembers={() => navigate(`/groups/${gid}/members`)} onInvite={() => navigate(`/groups/${gid}/invite`)}
                       onLeave={() => setLeaveOpen(true)}
+                      onDelete={() => setDeleteGroupOpen(true)}
                     />
                   )}
                 </motion.div>
@@ -3205,6 +3227,13 @@ export default function App() {
                 title={t("confirm.leaveGroup.title")}
                 body={t("confirm.leaveGroup.body", { name: cg?.name })}
                 cta={t("confirm.leaveGroup.cta")} danger onConfirm={leaveGroup}
+              />
+
+              <Confirm
+                open={deleteGroupOpen} onClose={() => setDeleteGroupOpen(false)}
+                title={t("confirm.deleteGroup.title")}
+                body={t("confirm.deleteGroup.body", { name: cg?.name })}
+                cta={t("confirm.deleteGroup.cta")} danger onConfirm={doDeleteGroup}
               />
 
               <Confirm

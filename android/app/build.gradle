@@ -10,9 +10,13 @@ android {
         // CI (build-android.yml) sets these to the run number so every
         // published build has a version higher than the last, with no
         // manual bump — the in-app update check compares against this.
-        // Local builds fall back to a fixed dev version.
-        versionCode (System.getenv("ANDROID_VERSION_CODE") ?: "1").toInteger()
-        versionName System.getenv("ANDROID_VERSION_NAME") ?: "1.0-dev"
+        // Local builds fall back to a fixed dev version. Assigned via
+        // locals + `=` (not the `versionCode (x).toInteger()` command-chain
+        // form) since Groovy parses that as `versionCode(null)` here.
+        def ciVersionCode = System.getenv("ANDROID_VERSION_CODE")
+        def ciVersionName = System.getenv("ANDROID_VERSION_NAME")
+        versionCode = ciVersionCode ? ciVersionCode.toInteger() : 1
+        versionName = ciVersionName ?: "1.0-dev"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

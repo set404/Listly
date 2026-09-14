@@ -388,6 +388,13 @@ function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promise<void>
 
     function onTouchStart(e: TouchEvent) {
       if (gestureRef.current.active) return;
+      // A touch starting on an item's drag handle is reordering, not
+      // pulling — both watch vertical movement on the same touch, so let
+      // Motion's drag gesture have it instead of racing it here.
+      if ((e.target as HTMLElement).closest?.("[data-drag-item]")) {
+        gestureRef.current = { startY: 0, pulling: false, active: false };
+        return;
+      }
       const scrollParent = findScrollParent(e.target as HTMLElement, container!);
       const atTop = !scrollParent || scrollParent.scrollTop <= 0;
       gestureRef.current = { startY: e.touches[0].clientY, pulling: atTop, active: false };
@@ -1112,8 +1119,13 @@ function ItemRow({ item, reorderable, onDragEnd, onToggle, onEdit, onDelete, onS
   const content = (
     <>
       {reorderable && (
+        // data-drag-item lets PullToRefresh's own touch handling know to
+        // back off for a touch starting here, instead of racing Motion's
+        // drag gesture for the same touch (both listen for vertical
+        // movement, and PullToRefresh doesn't know about item drags).
         <button
           type="button"
+          data-drag-item="true"
           onPointerDown={e => dragControls.start(e)}
           aria-label={t("itemRow.reorder")}
           className="flex-shrink-0 w-5 h-5 -ml-1 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
@@ -3376,9 +3388,7 @@ export default function App() {
               <Confirm
                 open={!!updateInfo} onClose={dismissUpdatePrompt}
                 title={t("confirm.updateAvailable.title")}
-                body={updateInfo?.notes
-                  ? t("confirm.updateAvailable.bodyWithNotes", { version: updateInfo.version, notes: updateInfo.notes })
-                  : t("confirm.updateAvailable.body", { version: updateInfo?.version })}
+                body={t("confirm.updateAvailable.body")}
                 cta={t("confirm.updateAvailable.cta")} onConfirm={downloadUpdate}
               />
 

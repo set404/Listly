@@ -265,8 +265,7 @@
     },
     "updateAvailable": {
       "title": "Update available",
-      "body": "Version {{version}} of Listly is available. Download it now to get the latest features and fixes.",
-      "bodyWithNotes": "Version {{version}} of Listly is available: {{notes}}",
+      "body": "A new version of Listly is available. Download it now to get the latest features and fixes.",
       "cta": "Download"
     }
   },

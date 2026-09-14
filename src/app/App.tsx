@@ -1302,14 +1302,14 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 // ─── List screen ──────────────────────────────────────────────────────────────
 
-function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard, onShare, onRename }: {
+function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard, onShare, onRename, onDelete }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
   onAdd: (text: string, imageUrl?: string) => void;
   onDeleteItem: (id: string) => void;
   onSetImage: (id: string, imageUrl: string) => void;
   onAddBonusCard?: () => void; onDeleteBonusCard?: (cardId: string) => void;
-  onShare?: () => void; onRename?: () => void;
+  onShare?: () => void; onRename?: () => void; onDelete?: () => void;
 }) {
   const { t } = useTranslation();
   const active = list.items.filter(i => !i.completed);
@@ -1347,6 +1347,15 @@ function ListScreen({ group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem
               className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors flex-shrink-0"
             >
               <Share2 className="w-4.5 h-4.5 text-foreground" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              aria-label={t("listScreen.delete")}
+              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-red-500/10 transition-colors flex-shrink-0"
+            >
+              <Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" />
             </button>
           )}
           <div className="flex -space-x-1.5">
@@ -2857,6 +2866,7 @@ export default function App() {
                       onSetImage={setWishlistItemImage}
                       onShare={() => setWShareOpen(true)}
                       onRename={openEditWishlist}
+                      onDelete={() => setWDeleteOpen(true)}
                     />
                   )}
                   {screen === "profile" && currentUser && (
@@ -3138,13 +3148,6 @@ export default function App() {
                   >
                     {wRegenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     {t("sheets.shareWishlist.generateNewLink")}
-                  </button>
-                  <button
-                    onClick={() => { setWShareOpen(false); setWDeleteOpen(true); }}
-                    className="w-full flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-semibold text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {t("sheets.shareWishlist.deleteWishlist")}
                   </button>
                 </div>
               </Sheet>

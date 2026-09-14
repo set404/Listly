@@ -123,6 +123,7 @@
   "listScreen": {
     "editNameIcon": "Edit name & icon",
     "share": "Share",
+    "delete": "Delete",
     "empty": "Nothing here yet — add your first item below.",
     "allDoneTitle": "All done!",
     "allDoneBody": "Every item is checked off.",
@@ -209,8 +210,7 @@
       "body": "Anyone with this link can view the wishlist — they can't add, check off, or change anything.",
       "copy": "Copy",
       "share": "Share",
-      "generateNewLink": "Generate a new link",
-      "deleteWishlist": "Delete wishlist"
+      "generateNewLink": "Generate a new link"
     },
     "addList": {
       "title": "Add a list",

@@ -170,7 +170,9 @@
     "addAria": "Add bonus card",
     "add": "Add",
     "close": "Close",
-    "delete": "Delete"
+    "delete": "Delete",
+    "previous": "Previous card",
+    "next": "Next card"
   },
   "sheets": {
     "createGroup": {

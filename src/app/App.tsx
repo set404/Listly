@@ -760,57 +760,56 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.22 }}
-                  className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3.5 hover:bg-muted/20 active:scale-[0.985] transition-all text-left shadow-sm cursor-pointer"
+                  className="w-full bg-card border border-border rounded-2xl p-4 flex items-start gap-3.5 hover:bg-muted/20 active:scale-[0.985] transition-all text-left shadow-sm cursor-pointer"
                 >
                   <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl flex-shrink-0">
                     {g.emoji}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground text-sm leading-snug">{g.name}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
-                      <span className="text-muted-foreground">{t("groups.listCount", { count: g.lists.length })}</span>
-                      {activeCount > 0 && (
-                        <>
-                          <span className="text-muted-foreground/40">·</span>
-                          <span className="text-primary font-semibold">{t("listStatus.left", { count: activeCount })}</span>
-                        </>
-                      )}
-                      {allDone && (
-                        <>
-                          <span className="text-muted-foreground/40">·</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{t("listStatus.allDone")}</span>
-                        </>
-                      )}
+                  <div className="flex-1 min-w-0 space-y-2.5">
+                    <div>
+                      <p className="font-semibold text-foreground text-sm leading-snug">{g.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                        <span className="text-muted-foreground">{t("groups.listCount", { count: g.lists.length })}</span>
+                        {allDone && (
+                          <>
+                            <span className="text-muted-foreground/40">·</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{t("listStatus.allDone")}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex -space-x-1.5 mt-2">
-                      {g.members.slice(0, 5).map(mem => (
-                        <div key={mem.id} className="ring-2 ring-card rounded-full">
-                          <Avatar m={mem} size="xs" />
-                        </div>
-                      ))}
-                      {g.members.length > 5 && (
-                        <div className="w-6 h-6 rounded-full bg-muted ring-2 ring-card text-[9px] font-bold text-muted-foreground flex items-center justify-center">
-                          +{g.members.length - 5}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-1.5">
+                        {g.members.slice(0, 5).map(mem => (
+                          <div key={mem.id} className="ring-2 ring-card rounded-full">
+                            <Avatar m={mem} size="xs" />
+                          </div>
+                        ))}
+                        {g.members.length > 5 && (
+                          <div className="w-6 h-6 rounded-full bg-muted ring-2 ring-card text-[9px] font-bold text-muted-foreground flex items-center justify-center">
+                            +{g.members.length - 5}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1" />
+                      {activeList && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onOpenActiveList(g.id, activeList.id); }}
+                          className="h-8 px-3 rounded-lg text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 active:scale-95 transition-all flex-shrink-0"
+                        >
+                          {t("groups.activeList")}
+                        </button>
                       )}
+                      <button
+                        onClick={e => { e.stopPropagation(); onAddList(g.id); }}
+                        aria-label={t("groups.addListAria", { name: g.name })}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 transition-all flex-shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     </div>
                   </div>
-                  {activeList && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onOpenActiveList(g.id, activeList.id); }}
-                      className="h-8 px-3 rounded-lg text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/15 active:scale-95 transition-all flex-shrink-0"
-                    >
-                      {t("groups.activeList")}
-                    </button>
-                  )}
-                  <button
-                    onClick={e => { e.stopPropagation(); onAddList(g.id); }}
-                    aria-label={t("groups.addListAria", { name: g.name })}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 transition-all flex-shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 </motion.div>
               );
             })}

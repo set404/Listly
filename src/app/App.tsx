@@ -670,9 +670,9 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
     gesture.current.active = false;
     const dx = dragX.get();
     const SWIPE_THRESHOLD = 70;
-    if (dx <= -SWIPE_THRESHOLD) go(1);
-    else if (dx >= SWIPE_THRESHOLD) go(-1);
-    animate(dragX, 0, { type: "spring", stiffness: 400, damping: 34 });
+    if (dx <= -SWIPE_THRESHOLD) { dragX.set(0); go(1); }
+    else if (dx >= SWIPE_THRESHOLD) { dragX.set(0); go(-1); }
+    else animate(dragX, 0, { type: "spring", stiffness: 400, damping: 34 });
   }
 
   return (

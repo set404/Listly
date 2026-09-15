@@ -617,7 +617,7 @@ function ZoomableImage({ src, alt, className, onZoomChange }: {
 // shown. Tapping a card opens it full-size with the option to delete it.
 
 const cardSlideVariants = {
-  enter: (dir: number) => ({ x: dir * 60, opacity: 0, scale: 0.96 }),
+  enter: (dir: number) => ({ x: dir * -60, opacity: 0, scale: 0.96 }),
   center: { x: 0, opacity: 1, scale: 1 },
   exit: (dir: number) => ({ x: dir * -60, opacity: 0, scale: 0.96 }),
 };

@@ -6,9 +6,9 @@ import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { hy as hyLocale } from "date-fns/locale";
 import {
-  Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight,
+  Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
   Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
-  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical,
+  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical, DollarSign,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, SAFE_AREA_TOP, SAFE_AREA_BOTTOM, type Member, type ThemeMode } from "./components/ui-kit";
 import { LoginScreen } from "./components/LoginScreen";
@@ -50,6 +50,7 @@ import {
   getPublicWishlist as apiGetPublicWishlist,
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
+import { CURRENCIES, formatMoney, currencySymbol } from "./lib/currencies";
 import { initPushNotifications } from "./lib/push";
 import { checkForUpdate, dismissUpdate, type UpdateInfo } from "./lib/appUpdate";
 import { hasPendingGoogleRedirect, completeGoogleRedirectSignIn } from "./lib/googleAuth";
@@ -114,6 +115,8 @@ interface ListItem {
   clientId: string;
   text: string;
   imageUrl?: string;
+  price?: number;
+  currency?: string;
   completed: boolean;
   completedAt?: number;
 }
@@ -138,6 +141,7 @@ interface Group {
   members: Member[];
   lists: ListSummary[];
   inviteCode: string;
+  defaultCurrency: string;
   bonusCards: BonusCardVM[];
   myRole: GroupRole;
 }
@@ -152,6 +156,95 @@ interface Wishlist {
 
 const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿", "💼", "🎉"];
 const WISHLIST_EMOJIS = ["🎁", "🎂", "💍", "🎄", "👶", "🏡", "🎓", "❤️", "✨", "🎉"];
+
+// A grid of pill buttons, styled the same as the emoji pickers above — used
+// wherever there's room for it (inside a Sheet) so the group's default
+// currency picks up the same look-and-feel instead of a native <select>.
+function CurrencyField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <p className="text-sm font-semibold text-foreground mb-3">{label}</p>
+      <div className="grid grid-cols-5 gap-2">
+        {CURRENCIES.map(c => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all ${
+              value === c
+                ? "bg-primary/15 border-2 border-primary text-primary scale-[1.05]"
+                : "bg-muted border-2 border-transparent text-foreground hover:bg-muted/80"
+            }`}
+          >
+            <span className="text-sm font-bold leading-none">{currencySymbol(c)}</span>
+            <span className="text-[9px] font-semibold tracking-wide opacity-70 leading-none">{c}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Compact currency dropdown for inline use (next to a price field, where
+// there's no room for a pill grid) — a small custom popover instead of a
+// native <select>, so it matches the app's own card/border/shadow styling
+// instead of the OS's default dropdown chrome.
+function CurrencyPicker({ value, onChange, className = "" }: {
+  value: string; onChange: (v: string) => void; className?: string;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className={`relative flex-shrink-0 ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-label={t("itemRow.currency")}
+        title={value}
+        className="flex items-center gap-0.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {currencySymbol(value)}
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.96 }}
+            transition={{ duration: 0.12 }}
+            className="absolute right-0 top-full mt-1.5 z-20 w-20 max-h-52 overflow-y-auto bg-card border border-border rounded-xl shadow-lg py-1"
+          >
+            {CURRENCIES.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { onChange(c); setOpen(false); }}
+                className={`w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  c === value ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted"
+                }`}
+              >
+                <span className="w-4 text-center flex-shrink-0">{currencySymbol(c)}</span>
+                <span>{c}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 // The native app's WebView serves local assets from https://localhost, not
 // a real address anyone else can open — a share link built from
@@ -201,6 +294,8 @@ function mapItem(i: ApiListItem): ListItem {
     clientId: i.id,
     text: i.text,
     imageUrl: i.imageUrl ?? undefined,
+    price: i.price ?? undefined,
+    currency: i.currency ?? undefined,
     completed: i.completed,
     completedAt: i.completedAt ? Date.parse(i.completedAt) : undefined,
   };
@@ -246,6 +341,7 @@ function mapGroup(g: ApiGroup, currentUserId: string): Group {
     name: g.name,
     emoji: g.emoji,
     inviteCode: g.inviteCode,
+    defaultCurrency: g.defaultCurrency,
     bonusCards: g.bonusCards.map(mapBonusCard),
     myRole: g.myRole,
     members: g.members.map(m => ({
@@ -1162,19 +1258,53 @@ function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, o
 
 // ─── List item row ────────────────────────────────────────────────────────────
 
-function ItemRow({ item, reorderable, onDragEnd, onToggle, onEdit, onDelete, onSetImage }: {
+function ItemRow({ item, reorderable, onDragEnd, onToggle, onEdit, onDelete, onSetImage, showPrice, defaultCurrency, onSetPrice }: {
   item: ListItem; reorderable?: boolean; onDragEnd?: () => void;
   onToggle: () => void; onEdit: (text: string) => void; onDelete: () => void;
   onSetImage: (imageUrl: string) => void;
+  showPrice?: boolean; defaultCurrency?: string;
+  onSetPrice?: (price: number | null, currency?: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [attachingPhoto, setAttachingPhoto] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(item.price != null ? String(item.price) : "");
+  const [currencyDraft, setCurrencyDraft] = useState(item.currency ?? defaultCurrency ?? "USD");
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
   const dragControls = useDragControls();
+
+  function startEditPrice() {
+    setPriceDraft(item.price != null ? String(item.price) : "");
+    setCurrencyDraft(item.currency ?? defaultCurrency ?? "USD");
+    setEditingPrice(true);
+    requestAnimationFrame(() => priceInputRef.current?.select());
+  }
+
+  function commitPrice(currencyOverride?: string) {
+    setEditingPrice(false);
+    const nextCurrency = currencyOverride ?? currencyDraft;
+    const trimmed = priceDraft.trim();
+    if (trimmed === "") {
+      if (item.price != null) onSetPrice?.(null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setPriceDraft(item.price != null ? String(item.price) : "");
+      return;
+    }
+    if (parsed !== item.price || nextCurrency !== item.currency) onSetPrice?.(parsed, nextCurrency);
+  }
+
+  function pickCurrency(currency: string) {
+    setCurrencyDraft(currency);
+    commitPrice(currency);
+  }
 
   function startEdit() {
     setDraft(item.text);
@@ -1295,15 +1425,53 @@ function ItemRow({ item, reorderable, onDragEnd, onToggle, onEdit, onDelete, onS
             if (e.key === "Escape") { setDraft(item.text); setEditing(false); }
           }}
           autoComplete="off"
-          className="flex-1 bg-transparent text-base md:text-sm leading-relaxed text-foreground focus:outline-none"
+          className="flex-1 min-w-0 bg-transparent text-base md:text-sm leading-relaxed text-foreground focus:outline-none"
         />
       ) : (
         <span
           onClick={startEdit}
-          className={`flex-1 text-sm leading-relaxed transition-all cursor-text ${item.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
+          className={`flex-1 min-w-0 break-words text-sm leading-relaxed transition-all cursor-text ${item.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
         >
           {item.text}
         </span>
+      )}
+      {showPrice && (
+        editingPrice ? (
+          <div
+            className="flex items-center gap-0.5 flex-shrink-0"
+            onBlur={e => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commitPrice();
+            }}
+          >
+            <input
+              ref={priceInputRef}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={priceDraft}
+              onChange={e => setPriceDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") { e.preventDefault(); commitPrice(); }
+                if (e.key === "Escape") { setPriceDraft(item.price != null ? String(item.price) : ""); setEditingPrice(false); }
+              }}
+              placeholder={t("itemRow.pricePlaceholder")}
+              className="w-9 bg-transparent text-xs text-right tabular-nums text-muted-foreground focus:outline-none border-b border-dashed border-border"
+            />
+            <CurrencyPicker value={currencyDraft} onChange={pickCurrency} />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={startEditPrice}
+            aria-label={t("itemRow.editPrice")}
+            className="flex-shrink-0 text-[11px] font-semibold tabular-nums px-1 py-0.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            {item.price != null
+              ? formatMoney(item.price, item.currency ?? defaultCurrency ?? "USD", i18n.language)
+              : <DollarSign className="w-3.5 h-3.5" />}
+          </button>
+        )
       )}
       <button
         onClick={onDelete}
@@ -1364,9 +1532,14 @@ function ItemRow({ item, reorderable, onDragEnd, onToggle, onEdit, onDelete, onS
 
 // ─── Quick-add row (sits right after the last checkbox) ────────────────────────
 
-function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => void }) {
+function QuickAddRow({ onAdd, showPrice, defaultCurrency }: {
+  onAdd: (text: string, imageUrl?: string, price?: number, currency?: string) => void;
+  showPrice?: boolean; defaultCurrency?: string;
+}) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
+  const [price, setPrice] = useState("");
+  const [currency, setCurrency] = useState(defaultCurrency ?? "USD");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1375,8 +1548,12 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
   function submit() {
     const t = text.trim();
     if (!t) return;
-    onAdd(t, imageDataUrl ?? undefined);
+    const parsedPrice = Number(price.trim());
+    const hasPrice = price.trim() !== "" && Number.isFinite(parsedPrice) && parsedPrice >= 0;
+    onAdd(t, imageDataUrl ?? undefined, hasPrice ? parsedPrice : undefined, hasPrice ? currency : undefined);
     setText("");
+    setPrice("");
+    setCurrency(defaultCurrency ?? "USD");
     setImageDataUrl(null);
     // Stay focused so pressing Enter repeatedly keeps adding items.
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -1408,8 +1585,24 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
         onKeyDown={e => e.key === "Enter" && submit()}
         placeholder={t("quickAdd.placeholder")}
         autoComplete="off"
-        className="flex-1 bg-transparent text-base md:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+        className="flex-1 min-w-0 bg-transparent text-base md:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
       />
+      {showPrice && (
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && submit()}
+            placeholder={t("itemRow.pricePlaceholder")}
+            className="w-9 bg-transparent text-sm text-right tabular-nums text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+          />
+          <CurrencyPicker value={currency} onChange={setCurrency} />
+        </div>
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -1448,24 +1641,48 @@ function QuickAddRow({ onAdd }: { onAdd: (text: string, imageUrl?: string) => vo
 
 function ListScreen({
   group, list, onBack, onToggle, onEdit, onAdd, onDeleteItem, onSetImage, onAddBonusCard, onDeleteBonusCard,
-  onShare, onRename, onDelete, onReorderPreview, onReorderCommit,
+  onShare, onRename, onDelete, onReorderPreview, onReorderCommit, enablePrice, onSetPrice,
 }: {
   group: Group; list: ListSummary; onBack: () => void; onToggle: (id: string) => void;
   onEdit: (id: string, text: string) => void;
-  onAdd: (text: string, imageUrl?: string) => void;
+  onAdd: (text: string, imageUrl?: string, price?: number, currency?: string) => void;
   onDeleteItem: (id: string) => void;
   onSetImage: (id: string, imageUrl: string) => void;
   onAddBonusCard?: () => void; onDeleteBonusCard?: (cardId: string) => void;
   onShare?: () => void; onRename?: () => void; onDelete?: () => void;
   onReorderPreview: (orderedIds: string[]) => void; onReorderCommit: () => void;
+  enablePrice?: boolean; onSetPrice?: (id: string, price: number | null, currency?: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const active = list.items.filter(i => !i.completed);
   const done = list.items.filter(i => i.completed).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   const total = list.items.length;
   const doneCount = done.length;
   const allDone = total > 0 && active.length === 0;
   const pct = total === 0 ? 0 : (doneCount / total) * 100;
+
+  // Amounts in different currencies can't just be added together, so each
+  // total is kept as a per-currency breakdown instead of a single number.
+  function sumByCurrency(items: ListItem[]): Record<string, number> {
+    const sums: Record<string, number> = {};
+    for (const i of items) {
+      if (i.price == null) continue;
+      const cur = i.currency ?? group.defaultCurrency;
+      sums[cur] = (sums[cur] ?? 0) + i.price;
+    }
+    return sums;
+  }
+  function formatSums(sums: Record<string, number>): string {
+    return Object.entries(sums).map(([cur, amt]) => formatMoney(amt, cur, i18n.language)).join(" + ");
+  }
+
+  const doneCostByCurrency = sumByCurrency(done);
+  const remainingCostByCurrency = sumByCurrency(active);
+  const totalCostByCurrency: Record<string, number> = { ...doneCostByCurrency };
+  for (const [cur, amt] of Object.entries(remainingCostByCurrency)) {
+    totalCostByCurrency[cur] = (totalCostByCurrency[cur] ?? 0) + amt;
+  }
+  const hasPricedItems = enablePrice && list.items.some(i => i.price != null);
 
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
@@ -1536,10 +1753,28 @@ function ListScreen({
             </span>
           </div>
         )}
+
+        {/* Price summary */}
+        {hasPricedItems && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 pb-1.5 text-xs">
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">{t("listScreen.doneCost")}</span>
+              <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatSums(doneCostByCurrency) || formatMoney(0, group.defaultCurrency, i18n.language)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">{t("listScreen.remainingCost")}</span>
+              <span className="font-semibold tabular-nums text-foreground">{formatSums(remainingCostByCurrency) || formatMoney(0, group.defaultCurrency, i18n.language)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">{t("listScreen.totalCost")}</span>
+              <span className="font-semibold tabular-nums text-foreground">{formatSums(totalCostByCurrency) || formatMoney(0, group.defaultCurrency, i18n.language)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* List content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="px-4 pt-1 pb-6">
           {total === 0 && (
             <div className="text-center pt-8 pb-2">
@@ -1555,12 +1790,14 @@ function ListScreen({
                     onToggle={() => onToggle(item.id)}
                     onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
                     onSetImage={url => onSetImage(item.id, url)}
+                    showPrice={enablePrice} defaultCurrency={group.defaultCurrency}
+                    onSetPrice={onSetPrice ? (price, currency) => onSetPrice(item.id, price, currency) : undefined}
                   />
                 ))}
               </AnimatePresence>
             </Reorder.Group>
 
-            <QuickAddRow onAdd={onAdd} />
+            <QuickAddRow onAdd={onAdd} showPrice={enablePrice} defaultCurrency={group.defaultCurrency} />
 
             <AnimatePresence initial={false}>
               {allDone && (
@@ -1594,6 +1831,8 @@ function ListScreen({
                   key={item.clientId} item={item} onToggle={() => onToggle(item.id)}
                   onEdit={t => onEdit(item.id, t)} onDelete={() => onDeleteItem(item.id)}
                   onSetImage={url => onSetImage(item.id, url)}
+                  showPrice={enablePrice} defaultCurrency={group.defaultCurrency}
+                  onSetPrice={onSetPrice ? (price, currency) => onSetPrice(item.id, price, currency) : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -2331,6 +2570,7 @@ export default function App() {
   // ── Create group ──
   const [cName, setCName] = useState("");
   const [cEmoji, setCEmoji] = useState("📋");
+  const [cCurrency, setCCurrency] = useState("USD");
   const [creating, setCreating] = useState(false);
 
   async function doCreate() {
@@ -2339,9 +2579,9 @@ export default function App() {
     if (!currentUser) { notify(t("toast.sessionMissing")); return; }
     setCreating(true);
     try {
-      const g = await apiCreateGroup(name, cEmoji);
+      const g = await apiCreateGroup(name, cEmoji, cCurrency);
       setGroups(gs => [...gs, mapGroup(g, currentUser.id)]);
-      setCName(""); setCEmoji("📋"); setCreateOpen(false);
+      setCName(""); setCEmoji("📋"); setCCurrency("USD"); setCreateOpen(false);
       notify(t("toast.created", { name }));
     } catch (e) {
       notify(e instanceof ApiError ? e.message : t("toast.couldNotCreateGroup"));
@@ -2354,12 +2594,14 @@ export default function App() {
   const [editGroupOpen, setEditGroupOpen] = useState(false);
   const [egName, setEgName] = useState("");
   const [egEmoji, setEgEmoji] = useState("📋");
+  const [egCurrency, setEgCurrency] = useState("USD");
   const [egSaving, setEgSaving] = useState(false);
 
   function openEditGroup() {
     if (!cg) return;
     setEgName(cg.name);
     setEgEmoji(cg.emoji);
+    setEgCurrency(cg.defaultCurrency);
     setEditGroupOpen(true);
   }
 
@@ -2368,8 +2610,8 @@ export default function App() {
     if (!gid || !name) return;
     setEgSaving(true);
     try {
-      const g = await apiUpdateGroup(gid, { name, emoji: egEmoji });
-      setGroups(gs => gs.map(x => x.id !== gid ? x : { ...x, name: g.name, emoji: g.emoji }));
+      const g = await apiUpdateGroup(gid, { name, emoji: egEmoji, defaultCurrency: egCurrency });
+      setGroups(gs => gs.map(x => x.id !== gid ? x : { ...x, name: g.name, emoji: g.emoji, defaultCurrency: g.defaultCurrency }));
       setEditGroupOpen(false);
       notify(t("toast.groupUpdated"));
     } catch (e) {
@@ -2722,6 +2964,30 @@ export default function App() {
     });
   }
 
+  function setItemPrice(id: string, price: number | null, currency?: string) {
+    if (!gid || !lid) return;
+    const list = cg?.lists.find(l => l.id === lid);
+    const prevItem = list?.items.find(i => i.id === id);
+    if (!prevItem) return;
+    const nextCurrency = price == null ? undefined : (currency ?? prevItem.currency);
+
+    setGroups(gs => gs.map(g => g.id !== gid ? g : {
+      ...g,
+      lists: g.lists.map(l => l.id !== lid ? l : {
+        ...l,
+        items: l.items.map(i => i.id !== id ? i : { ...i, price: price ?? undefined, currency: nextCurrency }),
+      }),
+    }));
+
+    apiUpdateItem(lid, id, { price, currency }).catch(() => {
+      setGroups(gs => gs.map(g => g.id !== gid ? g : {
+        ...g,
+        lists: g.lists.map(l => l.id !== lid ? l : { ...l, items: l.items.map(i => i.id !== id ? i : prevItem) }),
+      }));
+      notify(t("toast.couldNotUpdateItem"));
+    });
+  }
+
   // Fires live as the user drags (updates local order immediately for a
   // smooth visual re-sort); the actual PATCH only goes out once, from
   // commitItemsReorder, when the drag gesture ends.
@@ -2741,10 +3007,10 @@ export default function App() {
     apiReorderItems(lid, orderedIds).catch(() => notify(t("toast.couldNotReorderItems")));
   }
 
-  function addItem(text: string, imageUrl?: string) {
+  function addItem(text: string, imageUrl?: string, price?: number, currency?: string) {
     if (!gid || !lid) return;
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, imageUrl, completed: false };
+    const optimisticItem: ListItem = { id: tempId, clientId: tempId, text, imageUrl, price, currency, completed: false };
 
     // Mark this text as "pending" for this list so the realtime handler
     // recognizes and drops the echo of this same submission instead of
@@ -2764,7 +3030,7 @@ export default function App() {
       else pendingItemCountsRef.current.set(pendingKey, remaining);
     }
 
-    apiAddItem(lid, text, imageUrl)
+    apiAddItem(lid, text, imageUrl, price, currency)
       .then(item => {
         clearPending();
         setGroups(gs => gs.map(g => g.id !== gid ? g : {
@@ -3068,6 +3334,7 @@ export default function App() {
                       group={{
                         id: cw.id, name: cw.name, emoji: cw.emoji,
                         members: [], bonusCards: [], inviteCode: "", myRole: "ADMIN",
+                        defaultCurrency: "USD",
                         lists: [cw.list],
                       }}
                       list={cw.list} onBack={back}
@@ -3108,6 +3375,7 @@ export default function App() {
                       onDeleteBonusCard={deleteBonusCard}
                       onReorderPreview={reorderItemsPreview}
                       onReorderCommit={commitItemsReorder}
+                      enablePrice onSetPrice={setItemPrice}
                     />
                   )}
                   {screen === "members" && cg && (
@@ -3166,6 +3434,7 @@ export default function App() {
                     onKeyDown={e => e.key === "Enter" && doCreate()}
                     autoFocus
                   />
+                  <CurrencyField label={t("sheets.createGroup.currencyLabel")} value={cCurrency} onChange={setCCurrency} />
                   <div className="flex gap-3">
                     <Btn variant="outline" full onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Btn>
                     <Btn variant="primary" full onClick={doCreate} loading={creating} disabled={!cName.trim()}>{t("sheets.createGroup.submit")}</Btn>
@@ -3200,6 +3469,7 @@ export default function App() {
                     onKeyDown={e => e.key === "Enter" && doEditGroup()}
                     autoFocus
                   />
+                  <CurrencyField label={t("sheets.editGroup.currencyLabel")} value={egCurrency} onChange={setEgCurrency} />
                   <div className="flex gap-3">
                     <Btn variant="outline" full onClick={() => setEditGroupOpen(false)}>{t("common.cancel")}</Btn>
                     <Btn variant="primary" full onClick={doEditGroup} loading={egSaving} disabled={!egName.trim()}>{t("sheets.editGroup.submit")}</Btn>

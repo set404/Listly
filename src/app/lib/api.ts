@@ -25,6 +25,8 @@ export interface ApiListItem {
   listId: string;
   text: string;
   imageUrl: string | null;
+  price: number | null;
+  currency: string | null;
   completed: boolean;
   completedAt: string | null;
   createdAt: string;
@@ -52,6 +54,7 @@ export interface ApiGroup {
   name: string;
   emoji: string;
   inviteCode: string;
+  defaultCurrency: string;
   bonusCards: ApiBonusCard[];
   myRole: GroupRole;
   members: ApiMember[];
@@ -254,10 +257,10 @@ export function listGroups() {
   return apiFetch<ApiGroup[]>("/groups");
 }
 
-export function createGroup(name: string, emoji: string) {
+export function createGroup(name: string, emoji: string, defaultCurrency?: string) {
   return apiFetch<ApiGroup>("/groups", {
     method: "POST",
-    body: JSON.stringify({ name, emoji }),
+    body: JSON.stringify({ name, emoji, defaultCurrency }),
   });
 }
 
@@ -272,7 +275,7 @@ export function getGroup(groupId: string) {
   return apiFetch<ApiGroup>(`/groups/${groupId}`);
 }
 
-export function updateGroup(groupId: string, changes: { name?: string; emoji?: string }) {
+export function updateGroup(groupId: string, changes: { name?: string; emoji?: string; defaultCurrency?: string }) {
   return apiFetch<ApiGroup>(`/groups/${groupId}`, {
     method: "PATCH",
     body: JSON.stringify(changes),
@@ -317,17 +320,17 @@ export function deleteList(groupId: string, listId: string) {
   return apiFetch<void>(`/groups/${groupId}/lists/${listId}`, { method: "DELETE" });
 }
 
-export function addItem(listId: string, text: string, imageUrl?: string) {
+export function addItem(listId: string, text: string, imageUrl?: string, price?: number, currency?: string) {
   return apiFetch<ApiListItem>(`/lists/${listId}/items`, {
     method: "POST",
-    body: JSON.stringify({ text, imageUrl }),
+    body: JSON.stringify({ text, imageUrl, price, currency }),
   });
 }
 
 export function updateItem(
   listId: string,
   itemId: string,
-  changes: { completed?: boolean; text?: string; imageUrl?: string },
+  changes: { completed?: boolean; text?: string; imageUrl?: string; price?: number | null; currency?: string },
 ) {
   return apiFetch<ApiListItem>(`/lists/${listId}/items/${itemId}`, {
     method: "PATCH",

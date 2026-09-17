@@ -19,6 +19,8 @@
   --destructive: #E11D48;
   --destructive-foreground: #FFFFFF;
   --border: rgba(28, 25, 40, 0.08);
+  --scrollbar-thumb: rgba(28, 25, 40, 0.16);
+  --scrollbar-thumb-hover: rgba(28, 25, 40, 0.28);
   --input: transparent;
   --input-background: #ECEAF3;
   --switch-background: #C0BDCF;
@@ -59,6 +61,8 @@
   --destructive: #E11D48;
   --destructive-foreground: #FFFFFF;
   --border: rgba(232, 230, 244, 0.08);
+  --scrollbar-thumb: rgba(232, 230, 244, 0.16);
+  --scrollbar-thumb-hover: rgba(232, 230, 244, 0.28);
   --input: rgba(232, 230, 244, 0.06);
   --input-background: #22212E;
   --switch-background: #38364E;
@@ -124,6 +128,26 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
   }
 
   body {
@@ -180,5 +204,18 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+  }
+
+  /* Hide the native up/down spinner on number inputs (price fields) —
+     Chrome/Safari/Edge use the pseudo-elements, Firefox uses appearance. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
   }
 }

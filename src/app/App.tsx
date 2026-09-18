@@ -1775,7 +1775,7 @@ export default function App() {
 
   // ── Render ──
   return (
-    <div className={dark ? "dark" : ""} style={{ width: "100%", height: "100%" }}>
+    <div id="app-theme-root" className={dark ? "dark" : ""} style={{ width: "100%", height: "100%" }}>
       {/* Outer stage — full-bleed, no phone-frame mockup chrome */}
       <div className="w-full h-full">
         {/* position:relative so absolute overlays stay inside */}

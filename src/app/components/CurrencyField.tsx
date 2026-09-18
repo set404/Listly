@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { CURRENCIES, currencySymbol } from "../lib/currencies";
+import { getPortalRoot } from "../lib/portalRoot";
 
 // A labeled, full-width dropdown for choosing a group's default currency —
 // same closed-state styling as Field's input, with a custom popover menu
@@ -104,7 +105,7 @@ export function CurrencyField({ label, value, onChange }: { label: string; value
             </motion.div>
           )}
         </AnimatePresence>,
-        document.body
+        getPortalRoot()
       )}
     </div>
   );

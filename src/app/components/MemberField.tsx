@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { Avatar, type Member } from "./ui-kit";
+import { getPortalRoot } from "../lib/portalRoot";
 
 // The popover's max height (matches max-h-56 below) — used to decide
 // whether it fits below the trigger or needs to open upward.
@@ -109,7 +110,7 @@ export function MemberField({ label, members, value, onChange }: {
             </motion.div>
           )}
         </AnimatePresence>,
-        document.body
+        getPortalRoot()
       )}
     </div>
   );

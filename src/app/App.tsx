@@ -299,9 +299,13 @@ export default function App() {
     // Also refresh whichever specific resource is currently open, so
     // pulling to refresh while looking at a group/wishlist/expense group
     // updates what's actually on screen, not just the tab summaries.
-    if (gid) tasks.push(refreshGroupDetail(gid));
+    // gid/xgid share the same route field (screen tells them apart) — must
+    // check the screen family, not just id truthiness, or opening an
+    // expense group would also fire a STANDARD group detail request (and
+    // vice versa) for the same id.
+    if (gid && (screen === "groups" || isStandardGroupScreen)) tasks.push(refreshGroupDetail(gid));
     if (wid) tasks.push(refreshWishlistDetail(wid));
-    if (xgid) tasks.push(refreshExpenseGroupDetail(xgid));
+    if (xgid && (screen === "expenseGroups" || isExpenseGroupScreen)) tasks.push(refreshExpenseGroupDetail(xgid));
     await Promise.all(tasks).catch(() => notify(t("toast.refreshFailed")));
   }
 
@@ -535,11 +539,16 @@ export default function App() {
   // every time you enter it, independent of the lazy tab-list fetches
   // above (a deep link into a specific group fetches its own detail
   // directly, without waiting on the groups tab's summary list at all).
+  //
+  // gid/xgid share the same route field (screen tells them apart), so each
+  // is also gated on its own screen family — otherwise opening an expense
+  // group would set gid to that same id too and fire a STANDARD group
+  // detail request alongside the expense-group one (and vice versa).
   useEffect(() => {
-    if (!currentUser || !gid) return;
+    if (!currentUser || !gid || !isStandardGroupScreen) return;
     refreshGroupDetail(gid).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, gid]);
+  }, [currentUser, gid, isStandardGroupScreen]);
 
   useEffect(() => {
     if (!currentUser || !wid) return;
@@ -548,10 +557,10 @@ export default function App() {
   }, [currentUser, wid]);
 
   useEffect(() => {
-    if (!currentUser || !xgid) return;
+    if (!currentUser || !xgid || !isExpenseGroupScreen) return;
     refreshExpenseGroupDetail(xgid).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, xgid]);
+  }, [currentUser, xgid, isExpenseGroupScreen]);
 
   // ── Realtime ──
   // One socket per session; connected whenever there's an active session and
@@ -574,7 +583,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser || !gid) return;
+    // gid/xgid share the same route field (screen tells them apart) — gate
+    // on the actual screen family, or opening an expense group would also
+    // join this STANDARD-group room (and its handlers below would just sit
+    // there matching nothing, since a real STANDARD group never shares an
+    // id with an EXPENSE one, but the join/leave and unnecessary listener
+    // churn is still wasted work).
+    if (!currentUser || !gid || !isStandardGroupScreen) return;
     const socket = getSocket();
 
     joinGroupRoom(gid);
@@ -658,7 +673,7 @@ export default function App() {
       leaveGroupRoom(gid);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, gid]);
+  }, [currentUser?.id, gid, isStandardGroupScreen]);
 
   // Live updates for whichever expense group is currently open — mirrors the
   // shopping-list effect above, but also surfaces a toast when the change
@@ -666,7 +681,7 @@ export default function App() {
   // toggle would get noisy; an expense being logged/removed is rarer and
   // worth flagging).
   useEffect(() => {
-    if (!currentUser || !xgid) return;
+    if (!currentUser || !xgid || !isExpenseGroupScreen) return;
     const socket = getSocket();
 
     joinGroupRoom(xgid);
@@ -737,7 +752,7 @@ export default function App() {
       leaveGroupRoom(xgid);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, xgid]);
+  }, [currentUser?.id, xgid, isExpenseGroupScreen]);
 
   // ── Overlay visibility ──
   const [createOpen, setCreateOpen] = useState(false);

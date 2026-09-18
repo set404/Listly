@@ -91,6 +91,16 @@ export interface ApiExpense {
   splits: ApiExpenseSplit[];
 }
 
+export interface ApiSettlement {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
+  createdById: string | null;
+}
+
 export interface ApiExpenseGroup {
   id: string;
   name: string;
@@ -100,6 +110,7 @@ export interface ApiExpenseGroup {
   myRole: GroupRole;
   members: ApiMember[];
   expenses: ApiExpense[];
+  settlements: ApiSettlement[];
 }
 
 interface TokenPair {
@@ -494,4 +505,18 @@ export function updateExpense(
 
 export function deleteExpense(groupId: string, expenseId: string) {
   return apiFetch<void>(`/expense-groups/${groupId}/expenses/${expenseId}`, { method: "DELETE" });
+}
+
+export function addSettlement(
+  groupId: string,
+  input: { fromUserId: string; toUserId: string; amount: number; currency?: string },
+) {
+  return apiFetch<ApiSettlement>(`/expense-groups/${groupId}/settlements`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteSettlement(groupId: string, settlementId: string) {
+  return apiFetch<void>(`/expense-groups/${groupId}/settlements/${settlementId}`, { method: "DELETE" });
 }

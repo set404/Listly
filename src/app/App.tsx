@@ -8,7 +8,7 @@ import { hy as hyLocale } from "date-fns/locale";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
   Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
-  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical, DollarSign, Wallet, Receipt,
+  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical, DollarSign, Wallet, Receipt, ArrowRightLeft,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, SAFE_AREA_TOP, SAFE_AREA_BOTTOM, type Member, type ThemeMode } from "./components/ui-kit";
 import { LoginScreen } from "./components/LoginScreen";
@@ -21,7 +21,7 @@ import {
 } from "./lib/auth";
 import {
   ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
-  type ApiWishlist, type ApiPublicWishlist, type ApiExpense, type ApiExpenseGroup,
+  type ApiWishlist, type ApiPublicWishlist, type ApiExpense, type ApiExpenseGroup, type ApiSettlement,
   loginWithGoogle as apiLoginWithGoogle,
   storeTokens,
   listGroups as apiListGroups,
@@ -59,6 +59,8 @@ import {
   addExpense as apiAddExpense,
   updateExpense as apiUpdateExpense,
   deleteExpense as apiDeleteExpense,
+  addSettlement as apiAddSettlement,
+  deleteSettlement as apiDeleteSettlement,
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { CURRENCIES, formatMoney, currencySymbol } from "./lib/currencies";
@@ -198,9 +200,19 @@ interface ExpenseVM {
   splits: ExpenseSplitVM[];
 }
 
+interface SettlementVM {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  amount: number;
+  currency: string;
+  createdAt: number;
+}
+
 interface ExpenseGroup extends GroupIdentity {
   defaultCurrency: string;
   expenses: ExpenseVM[];
+  settlements: SettlementVM[];
 }
 
 const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿", "💼", "🎉"];
@@ -443,6 +455,17 @@ function mapExpense(e: ApiExpense): ExpenseVM {
   };
 }
 
+function mapSettlement(s: ApiSettlement): SettlementVM {
+  return {
+    id: s.id,
+    fromUserId: s.fromUserId,
+    toUserId: s.toUserId,
+    amount: s.amount,
+    currency: s.currency,
+    createdAt: Date.parse(s.createdAt),
+  };
+}
+
 function mapExpenseGroup(g: ApiExpenseGroup, currentUserId: string): ExpenseGroup {
   return {
     id: g.id,
@@ -455,14 +478,19 @@ function mapExpenseGroup(g: ApiExpenseGroup, currentUserId: string): ExpenseGrou
       id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
     })),
     expenses: g.expenses.map(mapExpense),
+    settlements: g.settlements.map(mapSettlement),
   };
 }
 
-// Net balance per member per currency: what they paid across all expenses,
-// minus their own share of every expense's split — positive means the group
-// owes them, negative means they owe the group. Not pairwise "who owes whom"
+// Net balance per member per currency: what they paid across all expenses
+// (plus settlements they sent), minus their own share of every expense's
+// split (plus settlements they received) — positive means the group owes
+// them, negative means they owe the group. Not pairwise "who owes whom"
 // (a real simplification vs. e.g. Splitwise's debt-graph reduction), just an
-// overall per-person total, which is enough for a first version.
+// overall per-person total, which is enough for a first version. A
+// settlement (a real-world payment from one member to another) moves the
+// same amount from the sender's debt into the receiver's credit, exactly
+// like an expense the sender "paid" and the receiver alone "owes".
 function computeExpenseBalances(group: ExpenseGroup): Record<string, Record<string, number>> {
   const balances: Record<string, Record<string, number>> = {};
   for (const m of group.members) balances[m.id] = {};
@@ -473,6 +501,12 @@ function computeExpenseBalances(group: ExpenseGroup): Record<string, Record<stri
       balances[s.userId] ??= {};
       balances[s.userId][e.currency] = (balances[s.userId][e.currency] ?? 0) - s.amount;
     }
+  }
+  for (const s of group.settlements) {
+    balances[s.fromUserId] ??= {};
+    balances[s.fromUserId][s.currency] = (balances[s.fromUserId][s.currency] ?? 0) + s.amount;
+    balances[s.toUserId] ??= {};
+    balances[s.toUserId][s.currency] = (balances[s.toUserId][s.currency] ?? 0) - s.amount;
   }
   return balances;
 }
@@ -1376,16 +1410,62 @@ function ExpenseRow({ expense, members, onEdit, onDelete }: {
   );
 }
 
-function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExpense, onDeleteExpense }: {
+function SettlementRow({ settlement, members, onDelete }: {
+  settlement: SettlementVM; members: Member[]; onDelete: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const from = members.find(m => m.id === settlement.fromUserId);
+  const to = members.find(m => m.id === settlement.toUserId);
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+      className="flex items-center gap-3.5 py-3.5 px-1"
+    >
+      <div className="flex-1 min-w-0 flex items-center gap-3.5">
+        <div className="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+          <ArrowRightLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {t("expenseGroupScreen.settlementLine", { from: from?.name ?? "?", to: to?.name ?? "?" })}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">{formatRelativeDate(settlement.createdAt, i18n.language)}</p>
+        </div>
+        <span className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+          {formatMoney(settlement.amount, settlement.currency, i18n.language)}
+        </span>
+      </div>
+      <button
+        onClick={onDelete}
+        type="button"
+        aria-label={t("expenseGroupScreen.deleteSettlementAria", { from: from?.name, to: to?.name })}
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </motion.div>
+  );
+}
+
+type ExpenseGroupActivityItem =
+  | { kind: "expense"; createdAt: number; expense: ExpenseVM }
+  | { kind: "settlement"; createdAt: number; settlement: SettlementVM };
+
+function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExpense, onDeleteExpense, onSettleUp, onDeleteSettlement }: {
   group: ExpenseGroup; onBack: () => void; onSettings: () => void;
   onAddExpense: () => void; onEditExpense: (expense: ExpenseVM) => void; onDeleteExpense: (expense: ExpenseVM) => void;
+  onSettleUp: () => void; onDeleteSettlement: (settlement: SettlementVM) => void;
 }) {
   const { t, i18n } = useTranslation();
   const balances = computeExpenseBalances(group);
   const me = group.members.find(m => m.isCurrentUser);
   const myBalances = me ? balances[me.id] ?? {} : {};
   const myEntries = Object.entries(myBalances).filter(([, amt]) => Math.abs(amt) > 0.005);
-  const expenses = [...group.expenses].sort((a, b) => b.createdAt - a.createdAt);
+  const activity: ExpenseGroupActivityItem[] = [
+    ...group.expenses.map((expense): ExpenseGroupActivityItem => ({ kind: "expense", createdAt: expense.createdAt, expense })),
+    ...group.settlements.map((settlement): ExpenseGroupActivityItem => ({ kind: "settlement", createdAt: settlement.createdAt, settlement })),
+  ].sort((a, b) => b.createdAt - a.createdAt);
 
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
@@ -1459,20 +1539,32 @@ function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExp
             </div>
           </div>
 
-          {expenses.length === 0 && (
+          {activity.length === 0 && (
             <div className="text-center pt-8 pb-2">
               <p className="text-sm text-muted-foreground">{t("expenseGroupScreen.empty")}</p>
             </div>
           )}
           <AnimatePresence initial={false}>
-            {expenses.map(e => (
-              <ExpenseRow key={e.id} expense={e} members={group.members} onEdit={() => onEditExpense(e)} onDelete={() => onDeleteExpense(e)} />
+            {activity.map(item => item.kind === "expense" ? (
+              <ExpenseRow
+                key={`e-${item.expense.id}`} expense={item.expense} members={group.members}
+                onEdit={() => onEditExpense(item.expense)} onDelete={() => onDeleteExpense(item.expense)}
+              />
+            ) : (
+              <SettlementRow
+                key={`s-${item.settlement.id}`} settlement={item.settlement} members={group.members}
+                onDelete={() => onDeleteSettlement(item.settlement)}
+              />
             ))}
           </AnimatePresence>
         </div>
       </div>
 
-      <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background">
+      <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background flex gap-3">
+        <Btn variant="outline" full size="lg" onClick={onSettleUp}>
+          <ArrowRightLeft className="w-5 h-5" />
+          {t("expenseGroupScreen.settleUp")}
+        </Btn>
         <Btn variant="primary" full size="lg" onClick={onAddExpense}>
           <Plus className="w-5 h-5" />
           {t("expenseGroupScreen.addExpense")}
@@ -3020,16 +3112,34 @@ export default function App() {
         notify(t("toast.expenseDeletedLive", { name: actorName(deletedById) }));
       }
     }
+    function onSettlementCreated({ groupId, settlement }: { groupId: string; settlement: ApiSettlement }) {
+      if (groupId !== xgid) return;
+      patchExpenseGroup(g => g.settlements.some(s => s.id === settlement.id) ? g : { ...g, settlements: [...g.settlements, mapSettlement(settlement)] });
+      if (settlement.createdById && settlement.createdById !== currentUser.id) {
+        notify(t("toast.settlementAddedLive", { name: actorName(settlement.createdById) }));
+      }
+    }
+    function onSettlementDeleted({ groupId, settlementId, deletedById }: { groupId: string; settlementId: string; deletedById: string }) {
+      if (groupId !== xgid) return;
+      patchExpenseGroup(g => ({ ...g, settlements: g.settlements.filter(s => s.id !== settlementId) }));
+      if (deletedById !== currentUser.id) {
+        notify(t("toast.settlementDeletedLive", { name: actorName(deletedById) }));
+      }
+    }
 
     socket.on("expense:created", onExpenseCreated);
     socket.on("expense:updated", onExpenseUpdated);
     socket.on("expense:deleted", onExpenseDeleted);
+    socket.on("settlement:created", onSettlementCreated);
+    socket.on("settlement:deleted", onSettlementDeleted);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("expense:created", onExpenseCreated);
       socket.off("expense:updated", onExpenseUpdated);
       socket.off("expense:deleted", onExpenseDeleted);
+      socket.off("settlement:created", onSettlementCreated);
+      socket.off("settlement:deleted", onSettlementDeleted);
       leaveGroupRoom(xgid);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3451,6 +3561,57 @@ export default function App() {
     }
   }
 
+  // ── Settle up ──
+  const [settleUpOpen, setSettleUpOpen] = useState(false);
+  const [suFromUserId, setSuFromUserId] = useState("");
+  const [suToUserId, setSuToUserId] = useState("");
+  const [suAmount, setSuAmount] = useState("");
+  const [suCurrency, setSuCurrency] = useState("USD");
+  const [suSaving, setSuSaving] = useState(false);
+
+  function openSettleUp() {
+    if (!cxg || !currentUser) return;
+    const others = cxg.members.filter(m => m.id !== currentUser.id);
+    setSuFromUserId(currentUser.id);
+    setSuToUserId(others[0]?.id ?? "");
+    setSuAmount("");
+    setSuCurrency(cxg.defaultCurrency);
+    setSettleUpOpen(true);
+  }
+
+  async function doSaveSettlement() {
+    const amount = Number(suAmount);
+    if (!xgid || !suFromUserId || !suToUserId || suFromUserId === suToUserId || !Number.isFinite(amount) || amount <= 0) return;
+    setSuSaving(true);
+    try {
+      const settlement = await apiAddSettlement(xgid, { fromUserId: suFromUserId, toUserId: suToUserId, amount, currency: suCurrency });
+      setExpenseGroups(gs => gs.map(g => g.id !== xgid || g.settlements.some(s => s.id === settlement.id)
+        ? g : { ...g, settlements: [...g.settlements, mapSettlement(settlement)] }));
+      setSettleUpOpen(false);
+      notify(t("toast.settlementAdded"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotAddSettlement"));
+    } finally {
+      setSuSaving(false);
+    }
+  }
+
+  const [deleteSettlementTarget, setDeleteSettlementTarget] = useState<SettlementVM | null>(null);
+
+  async function confirmDeleteSettlement() {
+    if (!xgid || !deleteSettlementTarget) return;
+    const target = deleteSettlementTarget;
+    try {
+      await apiDeleteSettlement(xgid, target.id);
+      setExpenseGroups(gs => gs.map(g => g.id !== xgid ? g : { ...g, settlements: g.settlements.filter(s => s.id !== target.id) }));
+      notify(t("toast.settlementDeleted"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotDeleteSettlement"));
+    } finally {
+      setDeleteSettlementTarget(null);
+    }
+  }
+
   // ── Lists ──
   const [addListOpen, setAddListOpen] = useState(false);
   const [addListGroupId, setAddListGroupId] = useState<string | null>(null);
@@ -3574,7 +3735,7 @@ export default function App() {
     || leaveOpen || deleteGroupOpen || logoutOpen || !!removeTarget || !!deleteListTarget
     || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen || !!updateInfo
     || xgCreateOpen || xgJoinOpen || xgEditOpen || xgLeaveOpen || xgDeleteOpen || !!xgRemoveTarget
-    || addExpenseOpen || !!deleteExpenseTarget;
+    || addExpenseOpen || !!deleteExpenseTarget || settleUpOpen || !!deleteSettlementTarget;
 
   function closeAllModals() {
     setCreateOpen(false);
@@ -3600,6 +3761,8 @@ export default function App() {
     setXgRemoveTarget(null);
     setAddExpenseOpen(false);
     setDeleteExpenseTarget(null);
+    setSettleUpOpen(false);
+    setDeleteSettlementTarget(null);
     dismissUpdatePrompt();
   }
 
@@ -4135,6 +4298,8 @@ export default function App() {
                       onAddExpense={openAddExpense}
                       onEditExpense={openEditExpense}
                       onDeleteExpense={setDeleteExpenseTarget}
+                      onSettleUp={openSettleUp}
+                      onDeleteSettlement={setDeleteSettlementTarget}
                     />
                   )}
                   {screen === "expenseGroupMembers" && cxg && (
@@ -4663,6 +4828,76 @@ export default function App() {
                 </div>
               </Sheet>
 
+              <Sheet open={settleUpOpen} onClose={() => setSettleUpOpen(false)} title={t("sheets.settleUp.title")}>
+                <div className="space-y-5">
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <Field
+                        label={t("sheets.settleUp.amountLabel")}
+                        placeholder="0"
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={suAmount}
+                        onChange={e => setSuAmount(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <CurrencyField label={t("sheets.settleUp.currencyLabel")} value={suCurrency} onChange={setSuCurrency} />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.settleUp.fromLabel")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {cxg?.members.map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setSuFromUserId(m.id)}
+                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
+                            suFromUserId === m.id
+                              ? "bg-primary/15 border-primary"
+                              : "bg-muted border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          <Avatar m={m} size="xs" />
+                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.settleUp.toLabel")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {cxg?.members.filter(m => m.id !== suFromUserId).map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setSuToUserId(m.id)}
+                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
+                            suToUserId === m.id
+                              ? "bg-primary/15 border-primary"
+                              : "bg-muted border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          <Avatar m={m} size="xs" />
+                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setSettleUpOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn
+                      variant="primary" full onClick={doSaveSettlement} loading={suSaving}
+                      disabled={!suFromUserId || !suToUserId || suFromUserId === suToUserId || !(Number(suAmount) > 0)}
+                    >
+                      {t("sheets.settleUp.submit")}
+                    </Btn>
+                  </div>
+                </div>
+              </Sheet>
+
               <Confirm
                 open={leaveOpen} onClose={() => setLeaveOpen(false)}
                 title={t("confirm.leaveGroup.title")}
@@ -4731,6 +4966,16 @@ export default function App() {
                 title={t("confirm.deleteExpense.title")}
                 body={t("confirm.deleteExpense.body", { description: deleteExpenseTarget?.description })}
                 cta={t("confirm.deleteExpense.cta")} danger onConfirm={confirmDeleteExpense}
+              />
+
+              <Confirm
+                open={!!deleteSettlementTarget} onClose={() => setDeleteSettlementTarget(null)}
+                title={t("confirm.deleteSettlement.title")}
+                body={t("confirm.deleteSettlement.body", {
+                  from: cxg?.members.find(m => m.id === deleteSettlementTarget?.fromUserId)?.name,
+                  to: cxg?.members.find(m => m.id === deleteSettlementTarget?.toUserId)?.name,
+                })}
+                cta={t("confirm.deleteSettlement.cta")} danger onConfirm={confirmDeleteSettlement}
               />
 
               <Confirm

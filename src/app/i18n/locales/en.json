@@ -113,12 +113,15 @@
     "paidBy": "Paid by {{name}}",
     "editExpenseAria": "Edit {{description}}",
     "deleteExpenseAria": "Delete {{description}}",
+    "deleteSettlementAria": "Delete payment from {{from}} to {{to}}",
     "youAreSettledUp": "You're all settled up",
     "youAreOwedTotal": "You're owed {{amount}} overall",
     "youOweTotal": "You owe {{amount}} overall",
     "settledUp": "Settled up",
     "empty": "No expenses yet — add the first one below.",
-    "addExpense": "Add expense"
+    "addExpense": "Add expense",
+    "settleUp": "Settle up",
+    "settlementLine": "{{from}} paid {{to}}"
   },
   "listCard": {
     "deleteAria": "Delete {{name}}"
@@ -289,6 +292,14 @@
     },
     "editExpense": {
       "title": "Edit expense"
+    },
+    "settleUp": {
+      "title": "Settle up",
+      "amountLabel": "Amount",
+      "currencyLabel": "Currency",
+      "fromLabel": "Who paid",
+      "toLabel": "Who received it",
+      "submit": "Record payment"
     }
   },
   "confirm": {
@@ -336,6 +347,11 @@
       "title": "Delete expense?",
       "body": "\"{{description}}\" will be permanently deleted and balances recalculated.",
       "cta": "Delete expense"
+    },
+    "deleteSettlement": {
+      "title": "Delete payment?",
+      "body": "The recorded payment from {{from}} to {{to}} will be permanently deleted and balances recalculated.",
+      "cta": "Delete payment"
     },
     "signOut": {
       "title": "Sign out?",
@@ -396,6 +412,12 @@
     "couldNotDeleteExpense": "Couldn't delete that expense.",
     "expenseAddedLive": "{{name}} added \"{{description}}\"",
     "expenseUpdatedLive": "{{name}} updated \"{{description}}\"",
-    "expenseDeletedLive": "{{name}} deleted an expense"
+    "expenseDeletedLive": "{{name}} deleted an expense",
+    "settlementAdded": "Payment recorded!",
+    "couldNotAddSettlement": "Couldn't record that payment.",
+    "settlementDeleted": "Payment deleted.",
+    "couldNotDeleteSettlement": "Couldn't delete that payment.",
+    "settlementAddedLive": "{{name}} recorded a payment",
+    "settlementDeletedLive": "{{name}} deleted a payment"
   }
 }

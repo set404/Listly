@@ -113,12 +113,15 @@
     "paidBy": "Վճարել է {{name}}",
     "editExpenseAria": "Խմբագրել {{description}}",
     "deleteExpenseAria": "Ջնջել {{description}}",
+    "deleteSettlementAria": "Ջնջել {{from}}-ի վճարումը {{to}}-ին",
     "youAreSettledUp": "Ձեր հաշիվը մաքուր է",
     "youAreOwedTotal": "Ընդհանուր առմամբ ձեզ պարտք են {{amount}}",
     "youOweTotal": "Ընդհանուր առմամբ դուք պարտք եք {{amount}}",
     "settledUp": "Հաշվարկված է",
     "empty": "Առայժմ ծախսեր չկան — ավելացրեք առաջինը ներքևում։",
-    "addExpense": "Ավելացնել ծախս"
+    "addExpense": "Ավելացնել ծախս",
+    "settleUp": "Հաշվարկել",
+    "settlementLine": "{{from}}-ը վճարել է {{to}}-ին"
   },
   "listCard": {
     "deleteAria": "Ջնջել {{name}}"
@@ -289,6 +292,14 @@
     },
     "editExpense": {
       "title": "Խմբագրել ծախսը"
+    },
+    "settleUp": {
+      "title": "Հաշվարկել",
+      "amountLabel": "Գումար",
+      "currencyLabel": "Արժույթ",
+      "fromLabel": "Ով է վճարել",
+      "toLabel": "Ով է ստացել",
+      "submit": "Գրանցել վճարումը"
     }
   },
   "confirm": {
@@ -336,6 +347,11 @@
       "title": "Ջնջե՞լ ծախսը",
       "body": "«{{description}}»-ը վերջնականապես կջնջվի և հաշվեկշիռները կվերահաշվարկվեն։",
       "cta": "Ջնջել ծախսը"
+    },
+    "deleteSettlement": {
+      "title": "Ջնջե՞լ վճարումը",
+      "body": "{{from}}-ի կողմից {{to}}-ին կատարված վճարման գրառումը վերջնականապես կջնջվի և հաշվեկշիռները կվերահաշվարկվեն։",
+      "cta": "Ջնջել վճարումը"
     },
     "signOut": {
       "title": "Դուրս գա՞լ",
@@ -396,6 +412,12 @@
     "couldNotDeleteExpense": "Չհաջողվեց ջնջել ծախսը։",
     "expenseAddedLive": "{{name}}-ն ավելացրեց «{{description}}»",
     "expenseUpdatedLive": "{{name}}-ը թարմացրեց «{{description}}»",
-    "expenseDeletedLive": "{{name}}-ը ջնջեց մի ծախս"
+    "expenseDeletedLive": "{{name}}-ը ջնջեց մի ծախս",
+    "settlementAdded": "Վճարումը գրանցվեց!",
+    "couldNotAddSettlement": "Չհաջողվեց գրանցել վճարումը։",
+    "settlementDeleted": "Վճարումը ջնջվեց։",
+    "couldNotDeleteSettlement": "Չհաջողվեց ջնջել վճարումը։",
+    "settlementAddedLive": "{{name}}-ը գրանցեց մի վճարում",
+    "settlementDeletedLive": "{{name}}-ը ջնջեց մի վճարում"
   }
 }

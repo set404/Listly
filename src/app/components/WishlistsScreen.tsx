@@ -1,11 +1,11 @@
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Plus, Gift, ChevronRight } from "lucide-react";
+import { Plus, Gift, ChevronRight, Loader2 } from "lucide-react";
 import { Btn } from "./ui-kit";
 import type { Wishlist } from "../types";
 
-export function WishlistsScreen({ wishlists, onOpen, onCreate }: {
-  wishlists: Wishlist[]; onOpen: (id: string) => void; onCreate: () => void;
+export function WishlistsScreen({ wishlists, loading, onOpen, onCreate }: {
+  wishlists: Wishlist[]; loading?: boolean; onOpen: (id: string) => void; onCreate: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -22,7 +22,11 @@ export function WishlistsScreen({ wishlists, onOpen, onCreate }: {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
-        {wishlists.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+          </div>
+        ) : wishlists.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-5">
             <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center">
               <Gift className="w-7 h-7 text-muted-foreground" />

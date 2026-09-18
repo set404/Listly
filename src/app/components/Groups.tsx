@@ -1,13 +1,13 @@
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { UserPlus, Plus, Users, ChevronRight } from "lucide-react";
+import { UserPlus, Plus, Users, ChevronRight, Loader2 } from "lucide-react";
 import { Btn, Avatar } from "./ui-kit";
 import type { Group } from "../types";
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
-export function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin }: {
-  groups: Group[]; onOpen: (id: string) => void; onOpenActiveList: (groupId: string, listId: string) => void;
+export function Groups({ groups, loading, onOpen, onOpenActiveList, onAddList, onCreate, onJoin }: {
+  groups: Group[]; loading?: boolean; onOpen: (id: string) => void; onOpenActiveList: (groupId: string, listId: string) => void;
   onAddList: (groupId: string) => void; onCreate: () => void; onJoin: () => void;
 }) {
   const { t } = useTranslation();
@@ -34,7 +34,11 @@ export function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, 
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
-        {groups.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+          </div>
+        ) : groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-5">
             <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center">
               <Users className="w-7 h-7 text-muted-foreground" />

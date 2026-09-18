@@ -1813,10 +1813,9 @@ export default function App() {
                       onGoLogin={() => navigate("/login")}
                     />
                   )}
-                  {screen === "groups" && !groupsListLoaded && <ScreenLoading />}
-                  {screen === "groups" && groupsListLoaded && (
+                  {screen === "groups" && (
                     <Groups
-                      groups={groups}
+                      groups={groups} loading={!groupsListLoaded}
                       onOpen={id => navigate(`/groups/${id}`)}
                       onOpenActiveList={(groupId, listId) => navigate(`/groups/${groupId}/list/${listId}`)}
                       onAddList={openAddList}
@@ -1824,15 +1823,14 @@ export default function App() {
                       onJoin={() => setJoinOpen(true)}
                     />
                   )}
-                  {screen === "wishlists" && !wishlistsListLoaded && <ScreenLoading />}
-                  {screen === "wishlists" && wishlistsListLoaded && (
+                  {screen === "wishlists" && (
                     <WishlistsScreen
-                      wishlists={wishlists}
+                      wishlists={wishlists} loading={!wishlistsListLoaded}
                       onOpen={id => navigate(`/wishlists/${id}`)}
                       onCreate={() => setWCreateOpen(true)}
                     />
                   )}
-                  {screen === "wishlist" && cw && !cw.detailLoaded && <ScreenLoading />}
+                  {screen === "wishlist" && !cw?.list && <ScreenLoading />}
                   {screen === "wishlist" && cw && cw.list && (
                     <ListScreen
                       group={{
@@ -1861,10 +1859,10 @@ export default function App() {
                       onGoLogin={() => navigate("/login")} onLogout={() => setLogoutOpen(true)}
                     />
                   )}
-                  {screen === "lists" && cg && !cg.detailLoaded && <ScreenLoading />}
-                  {screen === "lists" && cg && cg.detailLoaded && (
+                  {screen === "lists" && !cg && <ScreenLoading />}
+                  {screen === "lists" && cg && (
                     <ListsScreen
-                      group={cg}
+                      group={cg} loading={!cg.detailLoaded}
                       onOpenList={id => navigate(`/groups/${gid}/list/${id}`)}
                       onDeleteList={(listId, name) => gid && setDeleteListTarget({ groupId: gid, listId, name })}
                       onAddList={() => gid && openAddList(gid)}
@@ -1874,7 +1872,7 @@ export default function App() {
                       onDeleteBonusCard={deleteBonusCard}
                     />
                   )}
-                  {screen === "list" && cg && !cg.detailLoaded && <ScreenLoading />}
+                  {screen === "list" && !currentList && <ScreenLoading />}
                   {screen === "list" && cg && currentList && (
                     <ListScreen
                       group={cg} list={currentList} onBack={back}
@@ -1904,19 +1902,18 @@ export default function App() {
                       onDelete={() => setDeleteGroupOpen(true)}
                     />
                   )}
-                  {screen === "expenseGroups" && !expenseGroupsListLoaded && <ScreenLoading />}
-                  {screen === "expenseGroups" && expenseGroupsListLoaded && (
+                  {screen === "expenseGroups" && (
                     <ExpenseGroupsScreen
-                      groups={expenseGroups}
+                      groups={expenseGroups} loading={!expenseGroupsListLoaded}
                       onOpen={id => navigate(`/expense-groups/${id}`)}
                       onCreate={() => setXgCreateOpen(true)}
                       onJoin={() => setXgJoinOpen(true)}
                     />
                   )}
-                  {screen === "expenseGroup" && cxg && !cxg.detailLoaded && <ScreenLoading />}
-                  {screen === "expenseGroup" && cxg && cxg.detailLoaded && (
+                  {screen === "expenseGroup" && !cxg && <ScreenLoading />}
+                  {screen === "expenseGroup" && cxg && (
                     <ExpenseGroupScreen
-                      group={cxg} onBack={back}
+                      group={cxg} loading={!cxg.detailLoaded} onBack={back}
                       onSettings={() => navigate(`/expense-groups/${xgid}/settings`)}
                       onAddExpense={openAddExpense}
                       onEditExpense={openEditExpense}

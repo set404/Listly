@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, Settings, Trash2, ArrowRightLeft, Plus } from "lucide-react";
+import { ChevronLeft, Settings, Trash2, ArrowRightLeft, Plus, Loader2 } from "lucide-react";
 import { Btn, Avatar, type Member } from "./ui-kit";
 import { formatMoney } from "../lib/currencies";
 import { computeExpenseBalances, computeSettleUpSuggestions, formatRelativeDate } from "../lib/mappers";
@@ -90,8 +90,8 @@ type ExpenseGroupActivityItem =
   | { kind: "expense"; createdAt: number; expense: ExpenseVM }
   | { kind: "settlement"; createdAt: number; settlement: SettlementVM };
 
-export function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExpense, onDeleteExpense, onSettleUp, onDeleteSettlement }: {
-  group: ExpenseGroup; onBack: () => void; onSettings: () => void;
+export function ExpenseGroupScreen({ group, loading, onBack, onSettings, onAddExpense, onEditExpense, onDeleteExpense, onSettleUp, onDeleteSettlement }: {
+  group: ExpenseGroup; loading?: boolean; onBack: () => void; onSettings: () => void;
   onAddExpense: () => void; onEditExpense: (expense: ExpenseVM) => void; onDeleteExpense: (expense: ExpenseVM) => void;
   onSettleUp: (prefill?: SettleSuggestion) => void; onDeleteSettlement: (settlement: SettlementVM) => void;
 }) {
@@ -138,6 +138,11 @@ export function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, on
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+          </div>
+        ) : (
         <div className="px-4 pt-3 pb-6">
           {/* Balances card */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-4">
@@ -204,18 +209,21 @@ export function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, on
             ))}
           </AnimatePresence>
         </div>
+        )}
       </div>
 
-      <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background flex gap-3">
-        <Btn variant="outline" full size="lg" onClick={() => onSettleUp()}>
-          <ArrowRightLeft className="w-5 h-5" />
-          {t("expenseGroupScreen.settleUp")}
-        </Btn>
-        <Btn variant="primary" full size="lg" onClick={onAddExpense}>
-          <Plus className="w-5 h-5" />
-          {t("expenseGroupScreen.addExpense")}
-        </Btn>
-      </div>
+      {!loading && (
+        <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background flex gap-3">
+          <Btn variant="outline" full size="lg" onClick={() => onSettleUp()}>
+            <ArrowRightLeft className="w-5 h-5" />
+            {t("expenseGroupScreen.settleUp")}
+          </Btn>
+          <Btn variant="primary" full size="lg" onClick={onAddExpense}>
+            <Plus className="w-5 h-5" />
+            {t("expenseGroupScreen.addExpense")}
+          </Btn>
+        </div>
+      )}
     </div>
   );
 }

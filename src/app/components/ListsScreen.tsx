@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, Settings, Plus } from "lucide-react";
+import { ChevronLeft, Settings, Plus, Loader2 } from "lucide-react";
 import { Btn, Avatar } from "./ui-kit";
 import { ListCard } from "./ListCard";
 import { BonusCardRow } from "./BonusCardRow";
@@ -7,8 +7,8 @@ import type { Group } from "../types";
 
 // ─── Lists overview (a group's home screen) ────────────────────────────────────
 
-export function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSettings, onBack, onAddBonusCard, onDeleteBonusCard }: {
-  group: Group; onOpenList: (listId: string) => void; onDeleteList: (listId: string, name: string) => void;
+export function ListsScreen({ group, loading, onOpenList, onDeleteList, onAddList, onSettings, onBack, onAddBonusCard, onDeleteBonusCard }: {
+  group: Group; loading?: boolean; onOpenList: (listId: string) => void; onDeleteList: (listId: string, name: string) => void;
   onAddList: () => void; onSettings: () => void; onBack: () => void;
   onAddBonusCard: () => void; onDeleteBonusCard: (cardId: string) => void;
 }) {
@@ -47,7 +47,11 @@ export function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSett
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6">
-        {lists.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+          </div>
+        ) : lists.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-5 px-8">
             <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center text-3xl">📋</div>
             <div className="text-center space-y-1.5">
@@ -87,7 +91,7 @@ export function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSett
         )}
       </div>
 
-      {lists.length > 0 && (
+      {!loading && lists.length > 0 && (
         <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background">
           <Btn variant="primary" full size="lg" onClick={onAddList}>
             <Plus className="w-5 h-5" />
@@ -95,7 +99,7 @@ export function ListsScreen({ group, onOpenList, onDeleteList, onAddList, onSett
           </Btn>
         </div>
       )}
-      <BonusCardRow cards={group.bonusCards} onAdd={onAddBonusCard} onDelete={onDeleteBonusCard} />
+      {!loading && <BonusCardRow cards={group.bonusCards} onAdd={onAddBonusCard} onDelete={onDeleteBonusCard} />}
     </div>
   );
 }

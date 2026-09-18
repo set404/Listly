@@ -26,6 +26,12 @@ interface GithubRelease {
 
 // Native Android only: there's no update mechanism on web (every page load
 // already serves the latest build) or iOS (no direct-APK install flow here).
+//
+// Always returns the latest available update, regardless of whether it was
+// previously dismissed — callers decide whether to auto-show the intrusive
+// first-launch prompt (via isUpdateDismissed) or a persistent, always-
+// available "Update" entry elsewhere (e.g. Profile) that dismissing the
+// prompt shouldn't take away.
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (Capacitor.getPlatform() !== "android") return null;
 
@@ -46,10 +52,12 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   const currentCode = Number(info.build);
   if (!Number.isFinite(currentCode) || currentCode >= remoteVersionCode) return null;
 
-  const dismissed = Number(localStorage.getItem(DISMISSED_KEY) ?? "0");
-  if (remoteVersionCode <= dismissed) return null;
-
   return { version: release.tag_name, versionCode: remoteVersionCode, url: asset.browser_download_url, notes: release.body };
+}
+
+export function isUpdateDismissed(versionCode: number): boolean {
+  const dismissed = Number(localStorage.getItem(DISMISSED_KEY) ?? "0");
+  return versionCode <= dismissed;
 }
 
 export function dismissUpdate(versionCode: number): void {

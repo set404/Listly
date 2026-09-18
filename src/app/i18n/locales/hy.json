@@ -74,7 +74,9 @@
     "themeDark": "Մուգ",
     "themeSystem": "Համակարգային",
     "language": "Լեզու",
-    "signOut": "Դուրս գալ"
+    "signOut": "Դուրս գալ",
+    "updateAvailable": "Առկա է թարմացում",
+    "updateAvailableSub": "{{version}} տարբերակը պատրաստ է ներբեռնման"
   },
   "listStatus": {
     "noItems": "Առայժմ ապրանքներ չկան",

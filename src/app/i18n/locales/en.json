@@ -74,7 +74,9 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "language": "Language",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "updateAvailable": "Update available",
+    "updateAvailableSub": "Version {{version}} is ready to download"
   },
   "listStatus": {
     "noItems": "No items yet",

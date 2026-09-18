@@ -1,12 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { LogOut, Sun, Moon, Monitor, Languages } from "lucide-react";
+import { LogOut, Sun, Moon, Monitor, Languages, Download } from "lucide-react";
 import { Avatar, type ThemeMode } from "./ui-kit";
 import type { ApiUser } from "../lib/api";
+import type { UpdateInfo } from "../lib/appUpdate";
 import { LANGUAGE_STORAGE_KEY, SUPPORTED_LANGUAGES } from "../i18n";
 
-export function ProfileScreen({ user, theme, onTheme, onGoLogin, onLogout }: {
+export function ProfileScreen({ user, theme, onTheme, onGoLogin, onLogout, updateInfo, onDownloadUpdate }: {
   user: ApiUser; theme: ThemeMode; onTheme: (t: ThemeMode) => void;
   onGoLogin: () => void; onLogout: () => void;
+  updateInfo: UpdateInfo | null; onDownloadUpdate: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const isGuest = user.kind === "GUEST";
@@ -39,6 +41,23 @@ export function ProfileScreen({ user, theme, onTheme, onGoLogin, onLogout }: {
             </p>
           </div>
         </div>
+
+        {updateInfo && (
+          <section>
+            <div className="bg-primary/8 border border-primary/20 rounded-2xl overflow-hidden">
+              <button
+                onClick={onDownloadUpdate}
+                className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-primary/10 transition-colors text-left"
+              >
+                <Download className="w-4 h-4 flex-shrink-0 text-primary" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-primary">{t("profile.updateAvailable")}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("profile.updateAvailableSub", { version: updateInfo.version })}</p>
+                </div>
+              </button>
+            </div>
+          </section>
+        )}
 
         {isGuest && (
           <div className="bg-primary/8 rounded-xl px-4 py-3.5 flex items-start gap-2.5">

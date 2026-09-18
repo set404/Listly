@@ -81,7 +81,7 @@ import {
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { initPushNotifications } from "./lib/push";
-import { checkForUpdate, dismissUpdate, type UpdateInfo } from "./lib/appUpdate";
+import { checkForUpdate, dismissUpdate, isUpdateDismissed, type UpdateInfo } from "./lib/appUpdate";
 import { hasPendingGoogleRedirect, completeGoogleRedirectSignIn } from "./lib/googleAuth";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
@@ -578,8 +578,15 @@ export default function App() {
 
   // Update check (native Android only — no-op elsewhere). Runs once per app
   // launch, before or after login, since it doesn't depend on a session.
+  // updateInfo itself is kept regardless of dismissal (it backs the
+  // always-available Profile entry); only the intrusive first-launch
+  // prompt is skipped for a version already dismissed.
   useEffect(() => {
-    checkForUpdate().then(info => { if (info) setUpdateInfo(info); }).catch(() => {});
+    checkForUpdate().then(info => {
+      if (!info) return;
+      setUpdateInfo(info);
+      if (!isUpdateDismissed(info.versionCode)) setUpdatePromptOpen(true);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -760,6 +767,7 @@ export default function App() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updatePromptOpen, setUpdatePromptOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
@@ -1345,7 +1353,7 @@ export default function App() {
   // press is expected to behave.
   const anyModalOpen = createOpen || joinOpen || editGroupOpen || addListOpen || addBonusCardOpen
     || leaveOpen || deleteGroupOpen || logoutOpen || !!removeTarget || !!deleteListTarget
-    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen || !!updateInfo
+    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen || updatePromptOpen
     || xgCreateOpen || xgJoinOpen || xgEditOpen || xgLeaveOpen || xgDeleteOpen || !!xgRemoveTarget
     || addExpenseOpen || !!deleteExpenseTarget || settleUpOpen || !!deleteSettlementTarget;
 
@@ -1378,9 +1386,12 @@ export default function App() {
     dismissUpdatePrompt();
   }
 
+  // Closes the auto-shown prompt and remembers not to nag again for this
+  // version — but keeps updateInfo itself, so the Profile screen can still
+  // offer to install it later.
   function dismissUpdatePrompt() {
     if (updateInfo) dismissUpdate(updateInfo.versionCode);
-    setUpdateInfo(null);
+    setUpdatePromptOpen(false);
   }
 
   function downloadUpdate() {
@@ -1857,6 +1868,7 @@ export default function App() {
                     <ProfileScreen
                       user={currentUser} theme={themeMode} onTheme={setThemeMode}
                       onGoLogin={() => navigate("/login")} onLogout={() => setLogoutOpen(true)}
+                      updateInfo={updateInfo} onDownloadUpdate={downloadUpdate}
                     />
                   )}
                   {screen === "lists" && !cg && <ScreenLoading />}
@@ -2552,7 +2564,7 @@ export default function App() {
               />
 
               <Confirm
-                open={!!updateInfo} onClose={dismissUpdatePrompt}
+                open={updatePromptOpen} onClose={dismissUpdatePrompt}
                 title={t("confirm.updateAvailable.title")}
                 body={t("confirm.updateAvailable.body")}
                 cta={t("confirm.updateAvailable.cta")} onConfirm={downloadUpdate}

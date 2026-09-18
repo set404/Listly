@@ -117,6 +117,8 @@
     "youAreSettledUp": "You're all settled up",
     "youAreOwedTotal": "You're owed {{amount}} overall",
     "youOweTotal": "You owe {{amount}} overall",
+    "youOwe": "You owe {{name}}",
+    "owesYou": "{{name}} owes you",
     "settledUp": "Settled up",
     "empty": "No expenses yet — add the first one below.",
     "addExpense": "Add expense",

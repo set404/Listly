@@ -657,6 +657,54 @@ function computeExpenseBalances(group: ExpenseGroup): Record<string, Record<stri
   return balances;
 }
 
+interface SettleSuggestion {
+  fromUserId: string;
+  toUserId: string;
+  amount: number;
+  currency: string;
+}
+
+// Reduces each currency's net balances down to a minimal set of suggested
+// transfers ("who pays whom how much") via the standard greedy debt-
+// simplification: repeatedly match the biggest debtor against the biggest
+// creditor for the amount they overlap on. This can (correctly) suggest a
+// transfer between two people who never shared an expense directly — it's
+// the smallest set of payments that brings the whole group to zero, not a
+// literal replay of who-paid-for-what.
+function computeSettleUpSuggestions(group: ExpenseGroup): SettleSuggestion[] {
+  const balances = computeExpenseBalances(group);
+  const currencies = new Set<string>();
+  for (const m of group.members) for (const c of Object.keys(balances[m.id] ?? {})) currencies.add(c);
+
+  const suggestions: SettleSuggestion[] = [];
+  for (const currency of currencies) {
+    const creditors = group.members
+      .map(m => ({ userId: m.id, amount: balances[m.id]?.[currency] ?? 0 }))
+      .filter(e => e.amount > 0.005)
+      .sort((a, b) => b.amount - a.amount);
+    const debtors = group.members
+      .map(m => ({ userId: m.id, amount: -(balances[m.id]?.[currency] ?? 0) }))
+      .filter(e => e.amount > 0.005)
+      .sort((a, b) => b.amount - a.amount);
+
+    let i = 0;
+    let j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const debtor = debtors[i];
+      const creditor = creditors[j];
+      const amount = Math.round(Math.min(debtor.amount, creditor.amount) * 100) / 100;
+      if (amount > 0.005) {
+        suggestions.push({ fromUserId: debtor.userId, toUserId: creditor.userId, amount, currency });
+      }
+      debtor.amount -= amount;
+      creditor.amount -= amount;
+      if (debtor.amount <= 0.005) i++;
+      if (creditor.amount <= 0.005) j++;
+    }
+  }
+  return suggestions;
+}
+
 // ─── Item photo compression ────────────────────────────────────────────────
 //
 // Item photos travel as base64 data URLs in the JSON request body (no file
@@ -1601,13 +1649,15 @@ type ExpenseGroupActivityItem =
 function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExpense, onDeleteExpense, onSettleUp, onDeleteSettlement }: {
   group: ExpenseGroup; onBack: () => void; onSettings: () => void;
   onAddExpense: () => void; onEditExpense: (expense: ExpenseVM) => void; onDeleteExpense: (expense: ExpenseVM) => void;
-  onSettleUp: () => void; onDeleteSettlement: (settlement: SettlementVM) => void;
+  onSettleUp: (prefill?: SettleSuggestion) => void; onDeleteSettlement: (settlement: SettlementVM) => void;
 }) {
   const { t, i18n } = useTranslation();
   const balances = computeExpenseBalances(group);
   const me = group.members.find(m => m.isCurrentUser);
   const myBalances = me ? balances[me.id] ?? {} : {};
   const myEntries = Object.entries(myBalances).filter(([, amt]) => Math.abs(amt) > 0.005);
+  const settleSuggestions = computeSettleUpSuggestions(group);
+  const mySuggestions = me ? settleSuggestions.filter(s => s.fromUserId === me.id || s.toUserId === me.id) : [];
   const activity: ExpenseGroupActivityItem[] = [
     ...group.expenses.map((expense): ExpenseGroupActivityItem => ({ kind: "expense", createdAt: expense.createdAt, expense })),
     ...group.settlements.map((settlement): ExpenseGroupActivityItem => ({ kind: "settlement", createdAt: settlement.createdAt, settlement })),
@@ -1660,28 +1710,34 @@ function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExp
                 ))}
               </div>
             )}
-            <div className="space-y-2 pt-3 border-t border-border">
-              {group.members.filter(m => !m.isCurrentUser).map(m => {
-                const entries = Object.entries(balances[m.id] ?? {}).filter(([, amt]) => Math.abs(amt) > 0.005);
-                return (
-                  <div key={m.id} className="flex items-center gap-2.5">
-                    <Avatar m={m} size="xs" />
-                    <span className="flex-1 text-xs font-medium text-foreground truncate">{m.name}</span>
-                    {entries.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">{t("expenseGroupScreen.settledUp")}</span>
-                    ) : (
-                      <span className="text-xs font-semibold tabular-nums">
-                        {entries.map(([currency, amt], i) => (
-                          <span key={currency} className={amt > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}>
-                            {i > 0 && " · "}
-                            {formatMoney(Math.abs(amt), currency, i18n.language)}
-                          </span>
-                        ))}
+            <div className="space-y-1 pt-3 border-t border-border">
+              {mySuggestions.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center">{t("expenseGroupScreen.settledUp")}</p>
+              ) : (
+                mySuggestions.map(s => {
+                  const iOwe = me ? s.fromUserId === me.id : false;
+                  const other = group.members.find(m => m.id === (iOwe ? s.toUserId : s.fromUserId));
+                  if (!other) return null;
+                  return (
+                    <button
+                      key={`${s.fromUserId}-${s.toUserId}-${s.currency}`}
+                      type="button"
+                      onClick={() => onSettleUp(s)}
+                      className="w-full flex items-center gap-2.5 -mx-1 px-1 py-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <Avatar m={other} size="xs" />
+                      <span className="flex-1 text-left text-xs font-medium text-foreground truncate">
+                        {iOwe
+                          ? t("expenseGroupScreen.youOwe", { name: other.name })
+                          : t("expenseGroupScreen.owesYou", { name: other.name })}
                       </span>
-                    )}
-                  </div>
-                );
-              })}
+                      <span className={`text-xs font-semibold tabular-nums flex-shrink-0 ${iOwe ? "text-red-500 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {formatMoney(s.amount, s.currency, i18n.language)}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1707,7 +1763,7 @@ function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExp
       </div>
 
       <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background flex gap-3">
-        <Btn variant="outline" full size="lg" onClick={onSettleUp}>
+        <Btn variant="outline" full size="lg" onClick={() => onSettleUp()}>
           <ArrowRightLeft className="w-5 h-5" />
           {t("expenseGroupScreen.settleUp")}
         </Btn>
@@ -3711,13 +3767,20 @@ export default function App() {
   const [suCurrency, setSuCurrency] = useState("USD");
   const [suSaving, setSuSaving] = useState(false);
 
-  function openSettleUp() {
+  function openSettleUp(prefill?: SettleSuggestion) {
     if (!cxg || !currentUser) return;
-    const others = cxg.members.filter(m => m.id !== currentUser.id);
-    setSuFromUserId(currentUser.id);
-    setSuToUserId(others[0]?.id ?? "");
-    setSuAmount("");
-    setSuCurrency(cxg.defaultCurrency);
+    if (prefill) {
+      setSuFromUserId(prefill.fromUserId);
+      setSuToUserId(prefill.toUserId);
+      setSuAmount(String(prefill.amount));
+      setSuCurrency(prefill.currency);
+    } else {
+      const others = cxg.members.filter(m => m.id !== currentUser.id);
+      setSuFromUserId(currentUser.id);
+      setSuToUserId(others[0]?.id ?? "");
+      setSuAmount("");
+      setSuCurrency(cxg.defaultCurrency);
+    }
     setSettleUpOpen(true);
   }
 

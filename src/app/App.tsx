@@ -20,8 +20,9 @@ import {
   type RecoveryCandidate,
 } from "./lib/auth";
 import {
-  ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
-  type ApiWishlist, type ApiPublicWishlist, type ApiExpense, type ApiExpenseGroup, type ApiSettlement,
+  ApiError, type ApiUser, type ApiGroup, type ApiGroupSummary, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
+  type ApiWishlist, type ApiWishlistSummary, type ApiPublicWishlist, type ApiExpense, type ApiExpenseGroup,
+  type ApiExpenseGroupSummary, type ApiSettlement, type ApiBalanceSummary,
   loginWithGoogle as apiLoginWithGoogle,
   storeTokens,
   listGroups as apiListGroups,
@@ -43,12 +44,14 @@ import {
   deleteItem as apiDeleteItem,
   logout as apiLogout,
   listWishlists as apiListWishlists,
+  getWishlist as apiGetWishlist,
   createWishlist as apiCreateWishlist,
   updateWishlist as apiUpdateWishlist,
   deleteWishlist as apiDeleteWishlist,
   regenerateWishlistShareLink as apiRegenerateWishlistShareLink,
   getPublicWishlist as apiGetPublicWishlist,
   listExpenseGroups as apiListExpenseGroups,
+  getExpenseGroup as apiGetExpenseGroup,
   createExpenseGroup as apiCreateExpenseGroup,
   joinExpenseGroup as apiJoinExpenseGroup,
   updateExpenseGroup as apiUpdateExpenseGroup,
@@ -171,18 +174,34 @@ interface GroupIdentity {
   myRole: GroupRole;
 }
 
+// listCount/activeList/itemCounts come from the lightweight groups-tab
+// fetch and are always present; lists/bonusCards start empty and are only
+// populated once this specific group's full detail has been fetched
+// (detailLoaded flips to true then) — see the "fetch full detail on enter"
+// effect. Screens that need the real list contents must check
+// detailLoaded first instead of assuming lists is already right.
 interface Group extends GroupIdentity {
   lists: ListSummary[];
   defaultCurrency: string;
   bonusCards: BonusCardVM[];
+  listCount: number;
+  activeListSummary: { id: string; name: string; itemCount: number; doneCount: number } | null;
+  itemCounts: { total: number; done: number };
+  detailLoaded: boolean;
 }
 
+// itemCount/doneCount come from the lightweight wishlists-tab fetch; list
+// starts null and is only populated once this wishlist's full detail has
+// been fetched (detailLoaded flips to true then).
 interface Wishlist {
   id: string;
   name: string;
   emoji: string;
   shareToken: string | null;
   list: ListSummary | null;
+  itemCount: number;
+  doneCount: number;
+  detailLoaded: boolean;
 }
 
 interface ExpenseSplitVM {
@@ -209,10 +228,16 @@ interface SettlementVM {
   createdAt: number;
 }
 
+// balanceSummary comes from the lightweight expense-groups-tab fetch and is
+// always present; expenses/settlements start empty and are only populated
+// once this specific group's full detail has been fetched (detailLoaded
+// flips to true then).
 interface ExpenseGroup extends GroupIdentity {
   defaultCurrency: string;
   expenses: ExpenseVM[];
   settlements: SettlementVM[];
+  balanceSummary: ApiBalanceSummary;
+  detailLoaded: boolean;
 }
 
 const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿", "💼", "🎉"];
@@ -563,17 +588,61 @@ function mapBonusCard(c: ApiBonusCard): BonusCardVM {
   return { id: c.id, name: c.name, imageUrl: c.imageUrl };
 }
 
+// Lightweight — from the wishlists-tab list fetch. shareToken/list are
+// filled in once the full detail loads (detailLoaded flips to true then).
+function mapWishlistSummary(w: ApiWishlistSummary): Wishlist {
+  return {
+    id: w.id,
+    name: w.name,
+    emoji: w.emoji,
+    shareToken: null,
+    list: null,
+    itemCount: w.itemCount,
+    doneCount: w.doneCount,
+    detailLoaded: false,
+  };
+}
+
 function mapWishlist(w: ApiWishlist): Wishlist {
+  const list = w.list ? mapList(w.list) : null;
   return {
     id: w.id,
     name: w.name,
     emoji: w.emoji,
     shareToken: w.shareToken,
-    list: w.list ? mapList(w.list) : null,
+    list,
+    itemCount: list?.items.length ?? 0,
+    doneCount: list ? list.items.filter(i => i.completed).length : 0,
+    detailLoaded: true,
+  };
+}
+
+// Lightweight — from the groups-tab list fetch. lists/bonusCards are filled
+// in once the full detail loads (detailLoaded flips to true then).
+function mapGroupSummary(g: ApiGroupSummary, currentUserId: string): Group {
+  return {
+    id: g.id,
+    name: g.name,
+    emoji: g.emoji,
+    inviteCode: g.inviteCode,
+    defaultCurrency: g.defaultCurrency,
+    bonusCards: [],
+    myRole: g.myRole,
+    members: g.members.map(m => ({
+      id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
+    })),
+    lists: [],
+    listCount: g.listCount,
+    activeListSummary: g.activeList,
+    itemCounts: g.itemCounts,
+    detailLoaded: false,
   };
 }
 
 function mapGroup(g: ApiGroup, currentUserId: string): Group {
+  const lists = g.lists.map(mapList);
+  const allItems = lists.flatMap(l => l.items);
+  const activeListRow = lists.length > 0 ? lists[lists.length - 1] : null;
   return {
     id: g.id,
     name: g.name,
@@ -585,7 +654,13 @@ function mapGroup(g: ApiGroup, currentUserId: string): Group {
     members: g.members.map(m => ({
       id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
     })),
-    lists: g.lists.map(mapList),
+    lists,
+    listCount: lists.length,
+    activeListSummary: activeListRow
+      ? { id: activeListRow.id, name: activeListRow.name, itemCount: activeListRow.items.length, doneCount: activeListRow.items.filter(i => i.completed).length }
+      : null,
+    itemCounts: { total: allItems.length, done: allItems.filter(i => i.completed).length },
+    detailLoaded: true,
   };
 }
 
@@ -612,7 +687,9 @@ function mapSettlement(s: ApiSettlement): SettlementVM {
   };
 }
 
-function mapExpenseGroup(g: ApiExpenseGroup, currentUserId: string): ExpenseGroup {
+// Lightweight — from the expense-groups-tab list fetch. expenses/settlements
+// are filled in once the full detail loads (detailLoaded flips to true then).
+function mapExpenseGroupSummary(g: ApiExpenseGroupSummary, currentUserId: string): ExpenseGroup {
   return {
     id: g.id,
     name: g.name,
@@ -623,9 +700,40 @@ function mapExpenseGroup(g: ApiExpenseGroup, currentUserId: string): ExpenseGrou
     members: g.members.map(m => ({
       id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
     })),
-    expenses: g.expenses.map(mapExpense),
-    settlements: g.settlements.map(mapSettlement),
+    expenses: [],
+    settlements: [],
+    balanceSummary: g.balanceSummary,
+    detailLoaded: false,
   };
+}
+
+function mapExpenseGroup(g: ApiExpenseGroup, currentUserId: string): ExpenseGroup {
+  const members = g.members.map(m => ({
+    id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
+  }));
+  const expenses = g.expenses.map(mapExpense);
+  const settlements = g.settlements.map(mapSettlement);
+  const group: ExpenseGroup = {
+    id: g.id,
+    name: g.name,
+    emoji: g.emoji,
+    inviteCode: g.inviteCode,
+    defaultCurrency: g.defaultCurrency,
+    myRole: g.myRole,
+    members,
+    expenses,
+    settlements,
+    balanceSummary: null,
+    detailLoaded: true,
+  };
+  const me = members.find(m => m.isCurrentUser);
+  const mine = me ? (computeExpenseBalances(group)[me.id] ?? {}) : {};
+  const entry = Object.entries(mine).find(([, amt]) => Math.abs(amt) > 0.005);
+  const involved = expenses.some(e => e.paidById === me?.id || e.splits.some(s => s.userId === me?.id));
+  group.balanceSummary = entry
+    ? (entry[1] > 0 ? { kind: "owed", amount: entry[1], currency: entry[0] } : { kind: "owes", amount: -entry[1], currency: entry[0] })
+    : (involved ? { kind: "settled" } : null);
+  return group;
 }
 
 // Net balance per member per currency: what they paid across all expenses
@@ -1246,6 +1354,19 @@ function BonusCardRow({ cards, onAdd, onDelete }: {
   );
 }
 
+// A specific group/wishlist/expense-group's full detail is fetched lazily,
+// only once its screen is entered (see the "fetch on enter" effects) — this
+// fills the gap between landing on the screen (its summary, e.g. cg, is
+// already in state) and that fetch resolving, instead of flashing a
+// misleadingly empty list/expense feed.
+function ScreenLoading() {
+  return (
+    <div className="flex-1 flex items-center justify-center bg-background">
+      <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+    </div>
+  );
+}
+
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
 function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin }: {
@@ -1293,10 +1414,8 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
         ) : (
           <div className="space-y-3">
             {groups.map((g, i) => {
-              const allItems = g.lists.flatMap(l => l.items);
-              const activeCount = allItems.filter(item => !item.completed).length;
-              const allDone = allItems.length > 0 && activeCount === 0;
-              const activeList = g.lists.length > 0 ? g.lists[g.lists.length - 1] : null;
+              const allDone = g.itemCounts.total > 0 && g.itemCounts.done === g.itemCounts.total;
+              const activeList = g.activeListSummary;
               return (
                 <motion.div
                   key={g.id}
@@ -1317,7 +1436,7 @@ function Groups({ groups, onOpen, onOpenActiveList, onAddList, onCreate, onJoin 
                     <div>
                       <p className="font-semibold text-foreground text-sm leading-snug">{g.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5 text-xs">
-                        <span className="text-muted-foreground">{t("groups.listCount", { count: g.lists.length })}</span>
+                        <span className="text-muted-foreground">{t("groups.listCount", { count: g.listCount })}</span>
                         {allDone && (
                           <>
                             <span className="text-muted-foreground/40">·</span>
@@ -1405,9 +1524,8 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
         ) : (
           <div className="space-y-3">
             {wishlists.map((w, i) => {
-              const items = w.list?.items ?? [];
-              const activeCount = items.filter(item => !item.completed).length;
-              const allDone = items.length > 0 && activeCount === 0;
+              const activeCount = w.itemCount - w.doneCount;
+              const allDone = w.itemCount > 0 && activeCount === 0;
               return (
                 <motion.div
                   key={w.id}
@@ -1427,7 +1545,7 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-foreground text-sm leading-snug">{w.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 text-xs">
-                      {items.length === 0 ? (
+                      {w.itemCount === 0 ? (
                         <span className="text-muted-foreground">{t("listStatus.noItems")}</span>
                       ) : allDone ? (
                         <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{t("listStatus.allDone")}</span>
@@ -1435,7 +1553,7 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
                         <>
                           <span className="text-primary font-semibold">{t("listStatus.left", { count: activeCount })}</span>
                           <span className="text-muted-foreground/40">·</span>
-                          <span className="text-muted-foreground">{items.length - activeCount}/{items.length}</span>
+                          <span className="text-muted-foreground">{w.doneCount}/{w.itemCount}</span>
                         </>
                       )}
                     </div>
@@ -1455,23 +1573,6 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
 
 function formatRelativeDate(timestamp: number, locale: string): string {
   return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: locale === "hy" ? hyLocale : undefined });
-}
-
-// A card/header summary of the signed-in member's net balance in the first
-// currency that has one (a group with expenses logged in several currencies
-// keeps the summary compact rather than listing every one).
-type BalanceSummary = { kind: "owed" | "owes"; amount: string } | { kind: "settled" } | null;
-
-function myExpenseBalanceSummary(group: ExpenseGroup, locale: string): BalanceSummary {
-  const me = group.members.find(m => m.isCurrentUser);
-  if (!me) return null;
-  const balances = computeExpenseBalances(group);
-  const mine = balances[me.id] ?? {};
-  const entry = Object.entries(mine).find(([, amt]) => Math.abs(amt) > 0.005);
-  if (!entry) return group.expenses.length > 0 ? { kind: "settled" } : null;
-  const [currency, amt] = entry;
-  const amount = formatMoney(Math.abs(amt), currency, locale);
-  return amt > 0 ? { kind: "owed", amount } : { kind: "owes", amount };
 }
 
 function ExpenseGroupsScreen({ groups, onOpen, onCreate, onJoin }: {
@@ -1518,7 +1619,7 @@ function ExpenseGroupsScreen({ groups, onOpen, onCreate, onJoin }: {
         ) : (
           <div className="space-y-3">
             {groups.map((g, i) => {
-              const summary = myExpenseBalanceSummary(g, i18n.language);
+              const summary = g.balanceSummary;
               return (
                 <motion.div
                   key={g.id}
@@ -1545,8 +1646,8 @@ function ExpenseGroupsScreen({ groups, onOpen, onCreate, onJoin }: {
                       ) : (
                         <span className={`font-semibold ${summary.kind === "owed" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
                           {summary.kind === "owed"
-                            ? t("expenseGroups.youAreOwed", { amount: summary.amount })
-                            : t("expenseGroups.youOwe", { amount: summary.amount })}
+                            ? t("expenseGroups.youAreOwed", { amount: formatMoney(summary.amount, summary.currency, i18n.language) })
+                            : t("expenseGroups.youOwe", { amount: formatMoney(summary.amount, summary.currency, i18n.language) })}
                         </span>
                       )}
                     </div>
@@ -2939,26 +3040,108 @@ export default function App() {
     return `${listId}::${text}`;
   }
 
+  // Applies a fresh tab-list summary on top of whatever's already in state,
+  // preserving full detail (lists/expenses/etc.) for any entry that's
+  // already loaded it — the lazy summary-fetch and detail-fetch effects
+  // below can resolve in either order (e.g. a deep link straight into a
+  // specific group fires both at once), so the summary fetch must never
+  // blow away detail that already arrived.
+  function mergeGroupSummary(existing: Group | undefined, g: ApiGroupSummary, currentUserId: string): Group {
+    const summary = mapGroupSummary(g, currentUserId);
+    if (!existing?.detailLoaded) return summary;
+    return {
+      ...existing,
+      name: g.name, emoji: g.emoji, inviteCode: g.inviteCode, defaultCurrency: g.defaultCurrency,
+      myRole: g.myRole, members: summary.members,
+      listCount: g.listCount, activeListSummary: g.activeList, itemCounts: g.itemCounts,
+    };
+  }
+
+  function mergeWishlistSummary(existing: Wishlist | undefined, w: ApiWishlistSummary): Wishlist {
+    const summary = mapWishlistSummary(w);
+    if (!existing?.detailLoaded) return summary;
+    return { ...existing, name: w.name, emoji: w.emoji, itemCount: w.itemCount, doneCount: w.doneCount };
+  }
+
+  function mergeExpenseGroupSummary(existing: ExpenseGroup | undefined, g: ApiExpenseGroupSummary, currentUserId: string): ExpenseGroup {
+    const summary = mapExpenseGroupSummary(g, currentUserId);
+    if (!existing?.detailLoaded) return summary;
+    return {
+      ...existing,
+      name: g.name, emoji: g.emoji, inviteCode: g.inviteCode, defaultCurrency: g.defaultCurrency,
+      myRole: g.myRole, members: summary.members,
+    };
+  }
+
+  // These fetch the lightweight tab-list shape only (see ApiGroupSummary and
+  // friends) — never a specific group/wishlist/expense-group's full lists,
+  // items, or expenses. Full detail is fetched separately, only for
+  // whichever one resource is currently open (refreshGroupDetail etc.
+  // below), so opening the app or pulling to refresh a tab doesn't pull
+  // down every item/expense of every group you're in.
   async function refreshGroups(userId: string) {
     const list = await apiListGroups();
-    setGroups(list.map(g => mapGroup(g, userId)));
+    setGroups(gs => {
+      const byId = new Map(gs.map(g => [g.id, g]));
+      return list.map(g => mergeGroupSummary(byId.get(g.id), g, userId));
+    });
     return list.length;
   }
 
   async function refreshWishlists() {
     const list = await apiListWishlists();
-    setWishlists(list.map(mapWishlist));
+    setWishlists(ws => {
+      const byId = new Map(ws.map(w => [w.id, w]));
+      return list.map(w => mergeWishlistSummary(byId.get(w.id), w));
+    });
   }
 
   async function refreshExpenseGroups(userId: string) {
     const list = await apiListExpenseGroups();
-    setExpenseGroups(list.map(g => mapExpenseGroup(g, userId)));
+    setExpenseGroups(gs => {
+      const byId = new Map(gs.map(g => [g.id, g]));
+      return list.map(g => mergeExpenseGroupSummary(byId.get(g.id), g, userId));
+    });
+  }
+
+  // Full-detail refetch for one specific, currently-open resource — used by
+  // the "fetch on enter" effects below and by mutations that need to see
+  // their own effect reflected immediately (e.g. after adding an expense).
+  // Upserts rather than only updating, since the detail fetch can resolve
+  // before this resource's tab-list summary has ever been fetched (a deep
+  // link straight into a specific group, for one).
+  async function refreshGroupDetail(groupId: string) {
+    if (!currentUser) return;
+    const g = await apiGetGroup(groupId);
+    const mapped = mapGroup(g, currentUser.id);
+    setGroups(gs => gs.some(x => x.id === groupId) ? gs.map(x => x.id !== groupId ? x : mapped) : [...gs, mapped]);
+  }
+
+  async function refreshWishlistDetail(wishlistId: string) {
+    const w = await apiGetWishlist(wishlistId);
+    const mapped = mapWishlist(w);
+    setWishlists(ws => ws.some(x => x.id === wishlistId) ? ws.map(x => x.id !== wishlistId ? x : mapped) : [...ws, mapped]);
+  }
+
+  async function refreshExpenseGroupDetail(groupId: string) {
+    if (!currentUser) return;
+    const g = await apiGetExpenseGroup(groupId);
+    const mapped = mapExpenseGroup(g, currentUser.id);
+    setExpenseGroups(gs => gs.some(x => x.id === groupId) ? gs.map(x => x.id !== groupId ? x : mapped) : [...gs, mapped]);
   }
 
   async function handlePullRefresh() {
     if (!currentUser) return;
-    await Promise.all([refreshGroups(currentUser.id), refreshWishlists(), refreshExpenseGroups(currentUser.id)])
-      .catch(() => notify(t("toast.refreshFailed")));
+    const tasks: Promise<unknown>[] = [
+      refreshGroups(currentUser.id), refreshWishlists(), refreshExpenseGroups(currentUser.id),
+    ];
+    // Also refresh whichever specific resource is currently open, so
+    // pulling to refresh while looking at a group/wishlist/expense group
+    // updates what's actually on screen, not just the tab summaries.
+    if (gid) tasks.push(refreshGroupDetail(gid));
+    if (wid) tasks.push(refreshWishlistDetail(wid));
+    if (xgid) tasks.push(refreshExpenseGroupDetail(xgid));
+    await Promise.all(tasks).catch(() => notify(t("toast.refreshFailed")));
   }
 
   function enterApp(user: ApiUser) {
@@ -2977,7 +3160,6 @@ export default function App() {
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
           const { user, tokens } = await apiLoginWithGoogle(idToken);
           storeTokens(tokens);
-          await Promise.all([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
           enterApp(user);
           notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
           setBooting(false);
@@ -3007,7 +3189,6 @@ export default function App() {
         setBooting(false);
         return;
       }
-      await Promise.all([refreshGroups(result.user.id), refreshWishlists(), refreshExpenseGroups(result.user.id)]);
       if (!routedInitialScreen.current && !hadSpecificRouteOnLoad.current) {
         enterApp(result.user);
       } else {
@@ -3030,7 +3211,6 @@ export default function App() {
     setGuestLoading(true);
     try {
       const user = await continueAsGuest(fingerprintRef.current);
-      await Promise.all([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
       enterApp(user);
     } catch {
       notify(t("toast.couldNotStartGuest"));
@@ -3044,7 +3224,6 @@ export default function App() {
     setRecoveryLoading(true);
     try {
       const user = await acceptRecovery(recovery.recoveryId);
-      await Promise.all([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
       setRecovery(null);
       enterApp(user);
     } catch {
@@ -3068,17 +3247,17 @@ export default function App() {
   }
 
   async function handleAuthSuccess(user: ApiUser) {
-    const results = await Promise.allSettled([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
     enterApp(user);
-    if (results.some(r => r.status === "rejected")) {
-      notify(t("toast.refreshFailed"));
-    } else {
-      notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
-    }
+    notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
   }
 
   // ── Groups state ──
   const [groups, setGroups] = useState<Group[]>([]);
+  // Whether the (lightweight) groups-tab list has been fetched at least
+  // once this session — gates the dead-link route guard below so it
+  // doesn't bounce a deep link back to /groups just because the fetch
+  // that would populate `groups` hasn't resolved yet.
+  const [groupsListLoaded, setGroupsListLoaded] = useState(false);
   const gid = match.groupId;
   const lid = match.listId;
   const cg = groups.find(g => g.id === gid) ?? null;
@@ -3087,6 +3266,7 @@ export default function App() {
 
   // ── Wishlists state ──
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
+  const [wishlistsListLoaded, setWishlistsListLoaded] = useState(false);
   const wid = match.wishlistId;
   const cw = wishlists.find(w => w.id === wid) ?? null;
 
@@ -3095,6 +3275,7 @@ export default function App() {
   // never overlap (distinguished by `screen`), so a second route field
   // would just duplicate this one.
   const [expenseGroups, setExpenseGroups] = useState<ExpenseGroup[]>([]);
+  const [expenseGroupsListLoaded, setExpenseGroupsListLoaded] = useState(false);
   const xgid = match.groupId;
   const cxg = expenseGroups.find(x => x.id === xgid) ?? null;
   const isExpenseGroupAdmin = cxg?.myRole === "ADMIN";
@@ -3130,36 +3311,86 @@ export default function App() {
       return;
     }
     // gid/xgid share the same route field (screen tells them apart), so each
-    // dead-link check only fires on its own screen family.
-    if (isStandardGroupScreen && gid && !cg) {
+    // dead-link check only fires on its own screen family. Each is also
+    // gated on its tab's (lightweight) list having loaded at least once —
+    // that list is now fetched lazily instead of always being ready by the
+    // time booting finishes, so an empty array here can just mean "hasn't
+    // loaded yet," not "doesn't exist."
+    if (isStandardGroupScreen && gid && groupsListLoaded && !cg) {
       navigate("/groups", { replace: true });
       return;
     }
     // The list itself can vanish out from under a viewer (someone else
-    // deleted it) via a real-time event, not just their own action.
-    if (gid && lid && !currentList) {
+    // deleted it) via a real-time event, not just their own action. Only
+    // checked once this group's full detail (the actual lists array) has
+    // loaded — before that, cg.lists is legitimately empty.
+    if (gid && lid && cg?.detailLoaded && !currentList) {
       navigate(`/groups/${gid}`, { replace: true });
       return;
     }
-    if (wid && !cw) {
+    if (wid && wishlistsListLoaded && !cw) {
       navigate("/wishlists", { replace: true });
       return;
     }
-    if (isExpenseGroupScreen && xgid && !cxg) {
+    if (isExpenseGroupScreen && xgid && expenseGroupsListLoaded && !cxg) {
       navigate("/expense-groups", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booting, currentUser, screen, gid, cg, lid, currentList, wid, cw, xgid, cxg]);
+  }, [booting, currentUser, screen, gid, cg, lid, currentList, wid, cw, xgid, cxg, groupsListLoaded, wishlistsListLoaded, expenseGroupsListLoaded]);
 
-  // Real-time keeps things in sync while you're already looking at a list,
-  // but landing on one fresh (from the lists screen, or straight back into
-  // the same one) should never show stale data — refetch its group every time.
+  // ── Lazy tab-list fetches ──
+  // The groups/wishlists/expense-groups tab lists are lightweight summaries
+  // (see ApiGroupSummary etc.), but still not worth fetching until a screen
+  // that actually needs that resource type is visited — e.g. opening the
+  // app straight into a deep-linked expense group shouldn't also fetch the
+  // (unrelated) shopping-list groups tab. Each fires once per session, the
+  // first time its screen family is visited.
   useEffect(() => {
-    if (!currentUser || !gid || !lid) return;
-    apiGetGroup(gid)
-      .then(g => setGroups(gs => gs.map(group => group.id !== gid ? group : mapGroup(g, currentUser.id))))
-      .catch(() => {});
-  }, [currentUser, gid, lid]);
+    if (!currentUser || groupsListLoaded) return;
+    if (!(screen === "groups" || isStandardGroupScreen)) return;
+    refreshGroups(currentUser.id).then(() => setGroupsListLoaded(true)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, screen, groupsListLoaded]);
+
+  useEffect(() => {
+    if (!currentUser || wishlistsListLoaded) return;
+    if (!(screen === "wishlists" || screen === "wishlist")) return;
+    refreshWishlists().then(() => setWishlistsListLoaded(true)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, screen, wishlistsListLoaded]);
+
+  useEffect(() => {
+    if (!currentUser || expenseGroupsListLoaded) return;
+    if (!(screen === "expenseGroups" || isExpenseGroupScreen)) return;
+    refreshExpenseGroups(currentUser.id).then(() => setExpenseGroupsListLoaded(true)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, screen, expenseGroupsListLoaded]);
+
+  // ── Full detail on enter ──
+  // Real-time keeps things in sync while you're already looking at one of
+  // these, but landing on it fresh (a deep link, or straight back into the
+  // same one) should never show stale — or, now, still-empty-because-only-
+  // the-summary-loaded — data. Fetches that one resource's full detail
+  // every time you enter it, independent of the lazy tab-list fetches
+  // above (a deep link into a specific group fetches its own detail
+  // directly, without waiting on the groups tab's summary list at all).
+  useEffect(() => {
+    if (!currentUser || !gid) return;
+    refreshGroupDetail(gid).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, gid]);
+
+  useEffect(() => {
+    if (!currentUser || !wid) return;
+    refreshWishlistDetail(wid).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, wid]);
+
+  useEffect(() => {
+    if (!currentUser || !xgid) return;
+    refreshExpenseGroupDetail(xgid).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, xgid]);
 
   // ── Realtime ──
   // One socket per session; connected whenever there's an active session and
@@ -3733,7 +3964,7 @@ export default function App() {
           description, amount, currency: aeCurrency, paidById: aePaidById, participantIds: aeParticipantIds,
         });
       }
-      if (currentUser) await refreshExpenseGroups(currentUser.id);
+      await refreshExpenseGroupDetail(xgid);
       setAddExpenseOpen(false);
       notify(editingExpenseId ? t("toast.expenseUpdated") : t("toast.expenseAdded"));
     } catch (e) {
@@ -4423,6 +4654,7 @@ export default function App() {
                       onCreate={() => setWCreateOpen(true)}
                     />
                   )}
+                  {screen === "wishlist" && cw && !cw.detailLoaded && <ScreenLoading />}
                   {screen === "wishlist" && cw && cw.list && (
                     <ListScreen
                       group={{
@@ -4430,6 +4662,9 @@ export default function App() {
                         members: [], bonusCards: [], inviteCode: "", myRole: "ADMIN",
                         defaultCurrency: "USD",
                         lists: [cw.list],
+                        listCount: 1, activeListSummary: null,
+                        itemCounts: { total: cw.list.items.length, done: cw.list.items.filter(i => i.completed).length },
+                        detailLoaded: cw.detailLoaded,
                       }}
                       list={cw.list} onBack={back}
                       onToggle={toggleWishlistItem} onEdit={editWishlistItemText}
@@ -4448,7 +4683,8 @@ export default function App() {
                       onGoLogin={() => navigate("/login")} onLogout={() => setLogoutOpen(true)}
                     />
                   )}
-                  {screen === "lists" && cg && (
+                  {screen === "lists" && cg && !cg.detailLoaded && <ScreenLoading />}
+                  {screen === "lists" && cg && cg.detailLoaded && (
                     <ListsScreen
                       group={cg}
                       onOpenList={id => navigate(`/groups/${gid}/list/${id}`)}
@@ -4460,6 +4696,7 @@ export default function App() {
                       onDeleteBonusCard={deleteBonusCard}
                     />
                   )}
+                  {screen === "list" && cg && !cg.detailLoaded && <ScreenLoading />}
                   {screen === "list" && cg && currentList && (
                     <ListScreen
                       group={cg} list={currentList} onBack={back}
@@ -4496,7 +4733,8 @@ export default function App() {
                       onJoin={() => setXgJoinOpen(true)}
                     />
                   )}
-                  {screen === "expenseGroup" && cxg && (
+                  {screen === "expenseGroup" && cxg && !cxg.detailLoaded && <ScreenLoading />}
+                  {screen === "expenseGroup" && cxg && cxg.detailLoaded && (
                     <ExpenseGroupScreen
                       group={cxg} onBack={back}
                       onSettings={() => navigate(`/expense-groups/${xgid}/settings`)}

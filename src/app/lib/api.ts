@@ -61,12 +61,37 @@ export interface ApiGroup {
   lists: ApiList[];
 }
 
+// Card-level shape returned by GET /groups (the tab list) — no item bodies,
+// just enough to render each card. GET /groups/:id returns the full
+// ApiGroup above once a specific group is actually opened.
+export interface ApiGroupSummary {
+  id: string;
+  name: string;
+  emoji: string;
+  inviteCode: string;
+  defaultCurrency: string;
+  myRole: GroupRole;
+  members: ApiMember[];
+  listCount: number;
+  activeList: { id: string; name: string; itemCount: number; doneCount: number } | null;
+  itemCounts: { total: number; done: number };
+}
+
 export interface ApiWishlist {
   id: string;
   name: string;
   emoji: string;
   shareToken: string | null;
   list: ApiList | null;
+}
+
+// Card-level shape returned by GET /wishlists — item counts only.
+export interface ApiWishlistSummary {
+  id: string;
+  name: string;
+  emoji: string;
+  itemCount: number;
+  doneCount: number;
 }
 
 export interface ApiPublicWishlist {
@@ -111,6 +136,25 @@ export interface ApiExpenseGroup {
   members: ApiMember[];
   expenses: ApiExpense[];
   settlements: ApiSettlement[];
+}
+
+export type ApiBalanceSummary =
+  | { kind: "owed"; amount: number; currency: string }
+  | { kind: "owes"; amount: number; currency: string }
+  | { kind: "settled" }
+  | null;
+
+// Card-level shape returned by GET /expense-groups — just the viewer's own
+// net balance, not every expense/split/settlement for every member.
+export interface ApiExpenseGroupSummary {
+  id: string;
+  name: string;
+  emoji: string;
+  inviteCode: string;
+  defaultCurrency: string;
+  myRole: GroupRole;
+  members: ApiMember[];
+  balanceSummary: ApiBalanceSummary;
 }
 
 interface TokenPair {
@@ -292,7 +336,7 @@ export function declineGuestRecovery(recoveryId: string) {
 // ─── Groups ─────────────────────────────────────────────────────────────────
 
 export function listGroups() {
-  return apiFetch<ApiGroup[]>("/groups");
+  return apiFetch<ApiGroupSummary[]>("/groups");
 }
 
 export function createGroup(name: string, emoji: string, defaultCurrency?: string) {
@@ -393,7 +437,7 @@ export function reorderItems(listId: string, itemIds: string[]) {
 // ─── Wishlists ──────────────────────────────────────────────────────────────
 
 export function listWishlists() {
-  return apiFetch<ApiWishlist[]>("/wishlists");
+  return apiFetch<ApiWishlistSummary[]>("/wishlists");
 }
 
 export function createWishlist(name: string, emoji: string) {
@@ -431,7 +475,7 @@ export function getPublicWishlist(shareToken: string) {
 // ─── Expense groups ─────────────────────────────────────────────────────────
 
 export function listExpenseGroups() {
-  return apiFetch<ApiExpenseGroup[]>("/expense-groups");
+  return apiFetch<ApiExpenseGroupSummary[]>("/expense-groups");
 }
 
 export function createExpenseGroup(name: string, emoji: string, defaultCurrency?: string) {

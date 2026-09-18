@@ -3,12 +3,12 @@ import type { TouchEvent as ReactTouchEvent, TouchList as ReactTouchList } from 
 import { useNavigate, useLocation, useNavigationType } from "react-router";
 import { motion, AnimatePresence, LayoutGroup, useMotionValue, animate, Reorder, useDragControls } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { hy as hyLocale } from "date-fns/locale";
 import {
   Check, Plus, Copy, Share2, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
   Settings, Users, LogOut, UserPlus, Home, UserRound, Gift, Pencil,
-  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical, DollarSign,
+  Loader2, ShoppingBag, CheckCircle2, Trash2, ImagePlus, X, GripVertical, DollarSign, Wallet, Receipt,
 } from "lucide-react";
 import { Btn, Field, Sheet, Confirm, Toast, Avatar, SAFE_AREA_TOP, SAFE_AREA_BOTTOM, type Member, type ThemeMode } from "./components/ui-kit";
 import { LoginScreen } from "./components/LoginScreen";
@@ -21,7 +21,7 @@ import {
 } from "./lib/auth";
 import {
   ApiError, type ApiUser, type ApiGroup, type ApiList, type ApiListItem, type ApiBonusCard, type GroupRole,
-  type ApiWishlist, type ApiPublicWishlist,
+  type ApiWishlist, type ApiPublicWishlist, type ApiExpense, type ApiExpenseGroup,
   loginWithGoogle as apiLoginWithGoogle,
   storeTokens,
   listGroups as apiListGroups,
@@ -48,6 +48,17 @@ import {
   deleteWishlist as apiDeleteWishlist,
   regenerateWishlistShareLink as apiRegenerateWishlistShareLink,
   getPublicWishlist as apiGetPublicWishlist,
+  listExpenseGroups as apiListExpenseGroups,
+  createExpenseGroup as apiCreateExpenseGroup,
+  joinExpenseGroup as apiJoinExpenseGroup,
+  updateExpenseGroup as apiUpdateExpenseGroup,
+  deleteExpenseGroup as apiDeleteExpenseGroup,
+  leaveExpenseGroup as apiLeaveExpenseGroup,
+  removeExpenseGroupMember as apiRemoveExpenseGroupMember,
+  regenerateExpenseGroupInvite as apiRegenerateExpenseGroupInvite,
+  addExpense as apiAddExpense,
+  updateExpense as apiUpdateExpense,
+  deleteExpense as apiDeleteExpense,
 } from "./lib/api";
 import { getSocket, connectSocket, disconnectSocket, joinGroupRoom, leaveGroupRoom } from "./lib/socket";
 import { CURRENCIES, formatMoney, currencySymbol } from "./lib/currencies";
@@ -62,8 +73,10 @@ import { Share as CapShare } from "@capacitor/share";
 
 type Screen =
   | "login" | "register" | "groups" | "profile" | "lists" | "list" | "settings" | "members" | "invite"
-  | "wishlists" | "wishlist" | "public-wishlist" | "unknown";
-type TabScreen = "groups" | "wishlists" | "profile";
+  | "wishlists" | "wishlist" | "public-wishlist"
+  | "expenseGroups" | "expenseGroup" | "expenseGroupSettings" | "expenseGroupMembers" | "expenseGroupInvite"
+  | "unknown";
+type TabScreen = "groups" | "expenseGroups" | "wishlists" | "profile";
 type JoinStatus = "idle" | "loading" | "success" | "error";
 
 // ─── Route parsing ─────────────────────────────────────────────────────────
@@ -107,6 +120,15 @@ function parseRoute(pathname: string): RouteMatch {
     if (sub === "members") return { screen: "members", ...EMPTY_ROUTE_IDS, groupId };
     if (sub === "invite") return { screen: "invite", ...EMPTY_ROUTE_IDS, groupId };
   }
+  if (parts[0] === "expense-groups") {
+    if (!parts[1]) return { screen: "expenseGroups", ...EMPTY_ROUTE_IDS };
+    const groupId = parts[1];
+    const sub = parts[2];
+    if (!sub) return { screen: "expenseGroup", ...EMPTY_ROUTE_IDS, groupId };
+    if (sub === "settings") return { screen: "expenseGroupSettings", ...EMPTY_ROUTE_IDS, groupId };
+    if (sub === "members") return { screen: "expenseGroupMembers", ...EMPTY_ROUTE_IDS, groupId };
+    if (sub === "invite") return { screen: "expenseGroupInvite", ...EMPTY_ROUTE_IDS, groupId };
+  }
   return { screen: "unknown", ...EMPTY_ROUTE_IDS };
 }
 
@@ -134,16 +156,23 @@ interface BonusCardVM {
   imageUrl: string;
 }
 
-interface Group {
+// The subset of a Group's fields that MembersScreen/InviteScreen/SettingsScreen
+// actually touch — widening those screens' props to this instead of the full
+// STANDARD-only Group interface lets ExpenseGroup satisfy it too, so member
+// management, invites, and settings are shared between both group kinds.
+interface GroupIdentity {
   id: string;
   name: string;
   emoji: string;
   members: Member[];
-  lists: ListSummary[];
   inviteCode: string;
+  myRole: GroupRole;
+}
+
+interface Group extends GroupIdentity {
+  lists: ListSummary[];
   defaultCurrency: string;
   bonusCards: BonusCardVM[];
-  myRole: GroupRole;
 }
 
 interface Wishlist {
@@ -154,32 +183,83 @@ interface Wishlist {
   list: ListSummary | null;
 }
 
+interface ExpenseSplitVM {
+  userId: string;
+  amount: number;
+}
+
+interface ExpenseVM {
+  id: string;
+  description: string;
+  amount: number;
+  currency: string;
+  paidById: string;
+  createdAt: number;
+  splits: ExpenseSplitVM[];
+}
+
+interface ExpenseGroup extends GroupIdentity {
+  defaultCurrency: string;
+  expenses: ExpenseVM[];
+}
+
 const EMOJIS = ["📋", "🏠", "🍱", "✈️", "🛒", "🎯", "📦", "🌿", "💼", "🎉"];
 const WISHLIST_EMOJIS = ["🎁", "🎂", "💍", "🎄", "👶", "🏡", "🎓", "❤️", "✨", "🎉"];
+const EXPENSE_EMOJIS = ["💰", "🧾", "💳", "🍽️", "🏠", "✈️", "🎉", "📊", "🤝", "💵"];
 
-// A grid of pill buttons, styled the same as the emoji pickers above — used
-// wherever there's room for it (inside a Sheet) so the group's default
-// currency picks up the same look-and-feel instead of a native <select>.
+// A labeled, full-width dropdown for choosing a group's default currency —
+// same closed-state styling as Field's input, with a custom popover menu
+// (matching CurrencyPicker below) instead of a native <select>'s OS chrome.
 function CurrencyField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
   return (
-    <div>
-      <p className="text-sm font-semibold text-foreground mb-3">{label}</p>
-      <div className="grid grid-cols-5 gap-2">
-        {CURRENCIES.map(c => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => onChange(c)}
-            className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all ${
-              value === c
-                ? "bg-primary/15 border-2 border-primary text-primary scale-[1.05]"
-                : "bg-muted border-2 border-transparent text-foreground hover:bg-muted/80"
-            }`}
-          >
-            <span className="text-sm font-bold leading-none">{currencySymbol(c)}</span>
-            <span className="text-[9px] font-semibold tracking-wide opacity-70 leading-none">{c}</span>
-          </button>
-        ))}
+    <div className="flex flex-col gap-1.5 w-full">
+      <label className="text-sm font-semibold text-foreground">{label}</label>
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-muted/80 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-base md:text-sm border border-transparent"
+        >
+          <span className="font-medium">{currencySymbol(value)} {value}</span>
+          <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className="absolute left-0 right-0 top-full mt-1.5 z-20 bg-card border border-border rounded-2xl shadow-lg py-1 overflow-hidden"
+            >
+              {CURRENCIES.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => { onChange(c); setOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm font-medium transition-colors ${
+                    c === value ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className="w-6 text-center flex-shrink-0">{currencySymbol(c)}</span>
+                  <span>{c}</span>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -351,6 +431,52 @@ function mapGroup(g: ApiGroup, currentUserId: string): Group {
   };
 }
 
+function mapExpense(e: ApiExpense): ExpenseVM {
+  return {
+    id: e.id,
+    description: e.description,
+    amount: e.amount,
+    currency: e.currency,
+    paidById: e.paidById,
+    createdAt: Date.parse(e.createdAt),
+    splits: e.splits.map(s => ({ userId: s.userId, amount: s.amount })),
+  };
+}
+
+function mapExpenseGroup(g: ApiExpenseGroup, currentUserId: string): ExpenseGroup {
+  return {
+    id: g.id,
+    name: g.name,
+    emoji: g.emoji,
+    inviteCode: g.inviteCode,
+    defaultCurrency: g.defaultCurrency,
+    myRole: g.myRole,
+    members: g.members.map(m => ({
+      id: m.id, name: m.name, color: m.color, isCurrentUser: m.id === currentUserId,
+    })),
+    expenses: g.expenses.map(mapExpense),
+  };
+}
+
+// Net balance per member per currency: what they paid across all expenses,
+// minus their own share of every expense's split — positive means the group
+// owes them, negative means they owe the group. Not pairwise "who owes whom"
+// (a real simplification vs. e.g. Splitwise's debt-graph reduction), just an
+// overall per-person total, which is enough for a first version.
+function computeExpenseBalances(group: ExpenseGroup): Record<string, Record<string, number>> {
+  const balances: Record<string, Record<string, number>> = {};
+  for (const m of group.members) balances[m.id] = {};
+  for (const e of group.expenses) {
+    balances[e.paidById] ??= {};
+    balances[e.paidById][e.currency] = (balances[e.paidById][e.currency] ?? 0) + e.amount;
+    for (const s of e.splits) {
+      balances[s.userId] ??= {};
+      balances[s.userId][e.currency] = (balances[s.userId][e.currency] ?? 0) - s.amount;
+    }
+  }
+  return balances;
+}
+
 // ─── Item photo compression ────────────────────────────────────────────────
 //
 // Item photos travel as base64 data URLs in the JSON request body (no file
@@ -398,6 +524,7 @@ function BottomNav({ active, onChange }: { active: TabScreen; onChange: (tab: Ta
   const { t } = useTranslation();
   const tabs: { key: TabScreen; label: string; icon: React.ReactNode }[] = [
     { key: "groups", label: t("nav.groups"), icon: <Home className="w-5 h-5" /> },
+    { key: "expenseGroups", label: t("nav.expenses"), icon: <Wallet className="w-5 h-5" /> },
     { key: "wishlists", label: t("nav.wishlists"), icon: <Gift className="w-5 h-5" /> },
     { key: "profile", label: t("nav.profile"), icon: <UserRound className="w-5 h-5" /> },
   ];
@@ -1091,6 +1218,265 @@ function WishlistsScreen({ wishlists, onOpen, onCreate }: {
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Expense groups ─────────────────────────────────────────────────────────
+
+function formatRelativeDate(timestamp: number, locale: string): string {
+  return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: locale === "hy" ? hyLocale : undefined });
+}
+
+// A card/header summary of the signed-in member's net balance in the first
+// currency that has one (a group with expenses logged in several currencies
+// keeps the summary compact rather than listing every one).
+type BalanceSummary = { kind: "owed" | "owes"; amount: string } | { kind: "settled" } | null;
+
+function myExpenseBalanceSummary(group: ExpenseGroup, locale: string): BalanceSummary {
+  const me = group.members.find(m => m.isCurrentUser);
+  if (!me) return null;
+  const balances = computeExpenseBalances(group);
+  const mine = balances[me.id] ?? {};
+  const entry = Object.entries(mine).find(([, amt]) => Math.abs(amt) > 0.005);
+  if (!entry) return group.expenses.length > 0 ? { kind: "settled" } : null;
+  const [currency, amt] = entry;
+  const amount = formatMoney(Math.abs(amt), currency, locale);
+  return amt > 0 ? { kind: "owed", amount } : { kind: "owes", amount };
+}
+
+function ExpenseGroupsScreen({ groups, onOpen, onCreate, onJoin }: {
+  groups: ExpenseGroup[]; onOpen: (id: string) => void; onCreate: () => void; onJoin: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-3">
+        <h1 className="text-2xl font-bold text-foreground">{t("expenseGroups.title")}</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onJoin}
+            aria-label={t("expenseGroups.join")}
+            className="w-9 h-9 rounded-2xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-all active:scale-95"
+          >
+            <UserPlus className="w-4 h-4 text-foreground" />
+          </button>
+          <button
+            onClick={onCreate}
+            className="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center hover:opacity-90 transition-all active:scale-95 shadow-sm shadow-primary/30"
+          >
+            <Plus className="w-4 h-4 text-primary-foreground" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-6">
+        {groups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-5">
+            <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center">
+              <Wallet className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="font-semibold text-foreground">{t("expenseGroups.emptyTitle")}</p>
+              <p className="text-sm text-muted-foreground">{t("expenseGroups.emptyBody")}</p>
+            </div>
+            <Btn variant="primary" onClick={onCreate} size="md">
+              <Plus className="w-4 h-4" />
+              {t("expenseGroups.createGroup")}
+            </Btn>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {groups.map((g, i) => {
+              const summary = myExpenseBalanceSummary(g, i18n.language);
+              return (
+                <motion.div
+                  key={g.id}
+                  layout
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpen(g.id)}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(g.id); } }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.22 }}
+                  className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-3.5 hover:bg-muted/20 active:scale-[0.985] transition-all text-left shadow-sm cursor-pointer"
+                >
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl flex-shrink-0">
+                    {g.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground text-sm leading-snug">{g.name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                      {summary == null ? (
+                        <span className="text-muted-foreground">{t("expenseGroups.noExpensesYet")}</span>
+                      ) : summary.kind === "settled" ? (
+                        <span className="font-semibold text-muted-foreground">{t("expenseGroups.settledUp")}</span>
+                      ) : (
+                        <span className={`font-semibold ${summary.kind === "owed" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                          {summary.kind === "owed"
+                            ? t("expenseGroups.youAreOwed", { amount: summary.amount })
+                            : t("expenseGroups.youOwe", { amount: summary.amount })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpenseRow({ expense, members, onEdit, onDelete }: {
+  expense: ExpenseVM; members: Member[]; onEdit: () => void; onDelete: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const payer = members.find(m => m.id === expense.paidById);
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+      className="flex items-center gap-3.5 py-3.5 px-1"
+    >
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={t("expenseGroupScreen.editExpenseAria", { description: expense.description })}
+        className="flex-1 min-w-0 flex items-center gap-3.5 text-left rounded-xl hover:bg-muted/40 transition-colors -my-1 py-1"
+      >
+        {payer && <Avatar m={payer} size="sm" />}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{expense.description}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {payer ? t("expenseGroupScreen.paidBy", { name: payer.name }) : ""}
+            {" · "}
+            {formatRelativeDate(expense.createdAt, i18n.language)}
+          </p>
+        </div>
+        <span className="text-sm font-semibold tabular-nums text-foreground flex-shrink-0">
+          {formatMoney(expense.amount, expense.currency, i18n.language)}
+        </span>
+      </button>
+      <button
+        onClick={onDelete}
+        type="button"
+        aria-label={t("expenseGroupScreen.deleteExpenseAria", { description: expense.description })}
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </motion.div>
+  );
+}
+
+function ExpenseGroupScreen({ group, onBack, onSettings, onAddExpense, onEditExpense, onDeleteExpense }: {
+  group: ExpenseGroup; onBack: () => void; onSettings: () => void;
+  onAddExpense: () => void; onEditExpense: (expense: ExpenseVM) => void; onDeleteExpense: (expense: ExpenseVM) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const balances = computeExpenseBalances(group);
+  const me = group.members.find(m => m.isCurrentUser);
+  const myBalances = me ? balances[me.id] ?? {} : {};
+  const myEntries = Object.entries(myBalances).filter(([, amt]) => Math.abs(amt) > 0.005);
+  const expenses = [...group.expenses].sort((a, b) => b.createdAt - a.createdAt);
+
+  return (
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <button onClick={onBack} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted -ml-1 flex-shrink-0 transition-colors">
+          <ChevronLeft className="w-5 h-5 text-foreground" />
+        </button>
+        <span className="text-[20px]">{group.emoji}</span>
+        <h2 className="flex-1 font-bold text-lg text-foreground truncate">{group.name}</h2>
+        <div className="flex -space-x-1.5">
+          {group.members.slice(0, 3).map(m => (
+            <div key={m.id} className="ring-2 ring-background rounded-full">
+              <Avatar m={m} size="xs" />
+            </div>
+          ))}
+          {group.members.length > 3 && (
+            <div className="w-6 h-6 rounded-full bg-muted ring-2 ring-background text-[9px] font-bold text-muted-foreground flex items-center justify-center">
+              +{group.members.length - 3}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onSettings}
+          className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors ml-1"
+        >
+          <Settings className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="px-4 pt-3 pb-6">
+          {/* Balances card */}
+          <div className="bg-card border border-border rounded-2xl p-4 mb-4">
+            {myEntries.length === 0 ? (
+              <p className="text-sm font-semibold text-muted-foreground text-center">{t("expenseGroupScreen.youAreSettledUp")}</p>
+            ) : (
+              <div className="space-y-1 mb-3">
+                {myEntries.map(([currency, amt]) => (
+                  <p key={currency} className={`text-sm font-bold text-center ${amt > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                    {amt > 0
+                      ? t("expenseGroupScreen.youAreOwedTotal", { amount: formatMoney(amt, currency, i18n.language) })
+                      : t("expenseGroupScreen.youOweTotal", { amount: formatMoney(-amt, currency, i18n.language) })}
+                  </p>
+                ))}
+              </div>
+            )}
+            <div className="space-y-2 pt-3 border-t border-border">
+              {group.members.filter(m => !m.isCurrentUser).map(m => {
+                const entries = Object.entries(balances[m.id] ?? {}).filter(([, amt]) => Math.abs(amt) > 0.005);
+                return (
+                  <div key={m.id} className="flex items-center gap-2.5">
+                    <Avatar m={m} size="xs" />
+                    <span className="flex-1 text-xs font-medium text-foreground truncate">{m.name}</span>
+                    {entries.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">{t("expenseGroupScreen.settledUp")}</span>
+                    ) : (
+                      <span className="text-xs font-semibold tabular-nums">
+                        {entries.map(([currency, amt], i) => (
+                          <span key={currency} className={amt > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}>
+                            {i > 0 && " · "}
+                            {formatMoney(Math.abs(amt), currency, i18n.language)}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {expenses.length === 0 && (
+            <div className="text-center pt-8 pb-2">
+              <p className="text-sm text-muted-foreground">{t("expenseGroupScreen.empty")}</p>
+            </div>
+          )}
+          <AnimatePresence initial={false}>
+            {expenses.map(e => (
+              <ExpenseRow key={e.id} expense={e} members={group.members} onEdit={() => onEditExpense(e)} onDelete={() => onDeleteExpense(e)} />
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      <div className="px-5 pb-8 pt-3 border-t border-border/50 bg-background">
+        <Btn variant="primary" full size="lg" onClick={onAddExpense}>
+          <Plus className="w-5 h-5" />
+          {t("expenseGroupScreen.addExpense")}
+        </Btn>
       </div>
     </div>
   );
@@ -1849,7 +2235,7 @@ function ListScreen({
 // ─── Members ──────────────────────────────────────────────────────────────────
 
 function MembersScreen({ group, isAdmin, onBack, onRemove }: {
-  group: Group; isAdmin: boolean; onBack: () => void; onRemove: (m: Member) => void;
+  group: GroupIdentity; isAdmin: boolean; onBack: () => void; onRemove: (m: Member) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -1895,7 +2281,7 @@ function MembersScreen({ group, isAdmin, onBack, onRemove }: {
 // ─── Invite ───────────────────────────────────────────────────────────────────
 
 function InviteScreen({ group, onBack, onNewCode }: {
-  group: Group; onBack: () => void; onNewCode: () => void;
+  group: GroupIdentity; onBack: () => void; onNewCode: () => void;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -2014,7 +2400,7 @@ function SettingsRow({ icon, label, sub, danger, onClick }: {
 }
 
 function SettingsScreen({ group, isAdmin, onBack, onEdit, onMembers, onInvite, onLeave, onDelete }: {
-  group: Group; isAdmin: boolean; onBack: () => void; onEdit: () => void; onMembers: () => void;
+  group: GroupIdentity; isAdmin: boolean; onBack: () => void; onEdit: () => void; onMembers: () => void;
   onInvite: () => void; onLeave: () => void; onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -2240,6 +2626,12 @@ export default function App() {
   // must never claim it and redirect to /groups (or /login) the way it does
   // for every other first load.
   const routedInitialScreen = useRef(screen === "public-wishlist");
+  // Whether the URL already points somewhere specific when the app mounts —
+  // true for a page refresh/deep link into a list, wishlist, expense group,
+  // settings, etc. A successful bootstrap should leave that route alone
+  // instead of bouncing to /groups the way a fresh login does; only "login",
+  // "register", and "unknown" (e.g. the bare root) have nowhere to stay.
+  const hadSpecificRouteOnLoad = useRef(screen !== "login" && screen !== "register" && screen !== "unknown");
   // Count of in-flight addItem() submissions per "listId::text", still
   // waiting on their REST response. Lets the realtime item:created handler
   // recognize "this is my own submission echoing back" and skip rendering a
@@ -2264,9 +2656,14 @@ export default function App() {
     setWishlists(list.map(mapWishlist));
   }
 
+  async function refreshExpenseGroups(userId: string) {
+    const list = await apiListExpenseGroups();
+    setExpenseGroups(list.map(g => mapExpenseGroup(g, userId)));
+  }
+
   async function handlePullRefresh() {
     if (!currentUser) return;
-    await Promise.all([refreshGroups(currentUser.id), refreshWishlists()])
+    await Promise.all([refreshGroups(currentUser.id), refreshWishlists(), refreshExpenseGroups(currentUser.id)])
       .catch(() => notify(t("toast.refreshFailed")));
   }
 
@@ -2286,7 +2683,7 @@ export default function App() {
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
           const { user, tokens } = await apiLoginWithGoogle(idToken);
           storeTokens(tokens);
-          await Promise.all([refreshGroups(user.id), refreshWishlists()]);
+          await Promise.all([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
           enterApp(user);
           notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
           setBooting(false);
@@ -2316,10 +2713,11 @@ export default function App() {
         setBooting(false);
         return;
       }
-      await Promise.all([refreshGroups(result.user.id), refreshWishlists()]);
-      if (!routedInitialScreen.current) {
+      await Promise.all([refreshGroups(result.user.id), refreshWishlists(), refreshExpenseGroups(result.user.id)]);
+      if (!routedInitialScreen.current && !hadSpecificRouteOnLoad.current) {
         enterApp(result.user);
       } else {
+        routedInitialScreen.current = true;
         setCurrentUser(result.user);
       }
       setBooting(false);
@@ -2338,7 +2736,7 @@ export default function App() {
     setGuestLoading(true);
     try {
       const user = await continueAsGuest(fingerprintRef.current);
-      await Promise.all([refreshGroups(user.id), refreshWishlists()]);
+      await Promise.all([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
       enterApp(user);
     } catch {
       notify(t("toast.couldNotStartGuest"));
@@ -2352,7 +2750,7 @@ export default function App() {
     setRecoveryLoading(true);
     try {
       const user = await acceptRecovery(recovery.recoveryId);
-      await Promise.all([refreshGroups(user.id), refreshWishlists()]);
+      await Promise.all([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
       setRecovery(null);
       enterApp(user);
     } catch {
@@ -2376,9 +2774,13 @@ export default function App() {
   }
 
   async function handleAuthSuccess(user: ApiUser) {
-    await Promise.all([refreshGroups(user.id), refreshWishlists()]);
+    const results = await Promise.allSettled([refreshGroups(user.id), refreshWishlists(), refreshExpenseGroups(user.id)]);
     enterApp(user);
-    notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
+    if (results.some(r => r.status === "rejected")) {
+      notify(t("toast.refreshFailed"));
+    } else {
+      notify(t("toast.welcome", { name: user.name.split(" ")[0] }));
+    }
   }
 
   // ── Groups state ──
@@ -2394,11 +2796,31 @@ export default function App() {
   const wid = match.wishlistId;
   const cw = wishlists.find(w => w.id === wid) ?? null;
 
-  const showTabBar = screen === "groups" || screen === "wishlists" || screen === "profile";
+  // ── Expense groups state ──
+  // Reuses match.groupId — expense-group and shopping-list-group routes
+  // never overlap (distinguished by `screen`), so a second route field
+  // would just duplicate this one.
+  const [expenseGroups, setExpenseGroups] = useState<ExpenseGroup[]>([]);
+  const xgid = match.groupId;
+  const cxg = expenseGroups.find(x => x.id === xgid) ?? null;
+  const isExpenseGroupAdmin = cxg?.myRole === "ADMIN";
+  // Read inside the realtime socket handlers below, which are only ever
+  // (re)subscribed when xgid changes — not on every expenseGroups update —
+  // so member-name lookups for the live-update toast need a fresh value
+  // reached via a ref instead of the effect's own (stale) closure.
+  const expenseGroupsRef = useRef(expenseGroups);
+  expenseGroupsRef.current = expenseGroups;
+
+  const showTabBar = screen === "groups" || screen === "expenseGroups" || screen === "wishlists" || screen === "profile";
 
   // ── Route guard ──
   // Keep the URL honest: bounce signed-out visitors off protected routes,
   // signed-in ones off the auth screens, and drop dead group links back home.
+  const isStandardGroupScreen =
+    screen === "lists" || screen === "list" || screen === "settings" || screen === "members" || screen === "invite";
+  const isExpenseGroupScreen =
+    screen === "expenseGroup" || screen === "expenseGroupSettings" ||
+    screen === "expenseGroupMembers" || screen === "expenseGroupInvite";
   useEffect(() => {
     if (booting) return;
     // A shared wishlist link is public — reachable while signed out, and
@@ -2413,7 +2835,9 @@ export default function App() {
       navigate("/groups", { replace: true });
       return;
     }
-    if (gid && !cg) {
+    // gid/xgid share the same route field (screen tells them apart), so each
+    // dead-link check only fires on its own screen family.
+    if (isStandardGroupScreen && gid && !cg) {
       navigate("/groups", { replace: true });
       return;
     }
@@ -2425,9 +2849,13 @@ export default function App() {
     }
     if (wid && !cw) {
       navigate("/wishlists", { replace: true });
+      return;
+    }
+    if (isExpenseGroupScreen && xgid && !cxg) {
+      navigate("/expense-groups", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booting, currentUser, screen, gid, cg, lid, currentList, wid, cw]);
+  }, [booting, currentUser, screen, gid, cg, lid, currentList, wid, cw, xgid, cxg]);
 
   // Real-time keeps things in sync while you're already looking at a list,
   // but landing on one fresh (from the lists screen, or straight back into
@@ -2545,6 +2973,67 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, gid]);
+
+  // Live updates for whichever expense group is currently open — mirrors the
+  // shopping-list effect above, but also surfaces a toast when the change
+  // came from someone else (shopping-list items don't, since every checkbox
+  // toggle would get noisy; an expense being logged/removed is rarer and
+  // worth flagging).
+  useEffect(() => {
+    if (!currentUser || !xgid) return;
+    const socket = getSocket();
+
+    joinGroupRoom(xgid);
+
+    function onConnect() {
+      joinGroupRoom(xgid);
+    }
+    socket.on("connect", onConnect);
+
+    function patchExpenseGroup(updater: (g: ExpenseGroup) => ExpenseGroup) {
+      setExpenseGroups(gs => gs.map(g => g.id !== xgid ? g : updater(g)));
+    }
+
+    function actorName(userId: string): string {
+      const group = expenseGroupsRef.current.find(g => g.id === xgid);
+      return group?.members.find(m => m.id === userId)?.name ?? t("common.someone");
+    }
+
+    function onExpenseCreated({ groupId, expense }: { groupId: string; expense: ApiExpense }) {
+      if (groupId !== xgid) return;
+      patchExpenseGroup(g => g.expenses.some(e => e.id === expense.id) ? g : { ...g, expenses: [...g.expenses, mapExpense(expense)] });
+      if (expense.createdById && expense.createdById !== currentUser.id) {
+        notify(t("toast.expenseAddedLive", { name: actorName(expense.createdById), description: expense.description }));
+      }
+    }
+    function onExpenseUpdated({ groupId, expense, updatedById }: { groupId: string; expense: ApiExpense; updatedById: string }) {
+      if (groupId !== xgid) return;
+      patchExpenseGroup(g => ({ ...g, expenses: g.expenses.map(e => e.id === expense.id ? mapExpense(expense) : e) }));
+      if (updatedById !== currentUser.id) {
+        notify(t("toast.expenseUpdatedLive", { name: actorName(updatedById), description: expense.description }));
+      }
+    }
+    function onExpenseDeleted({ groupId, expenseId, deletedById }: { groupId: string; expenseId: string; deletedById: string }) {
+      if (groupId !== xgid) return;
+      patchExpenseGroup(g => ({ ...g, expenses: g.expenses.filter(e => e.id !== expenseId) }));
+      if (deletedById !== currentUser.id) {
+        notify(t("toast.expenseDeletedLive", { name: actorName(deletedById) }));
+      }
+    }
+
+    socket.on("expense:created", onExpenseCreated);
+    socket.on("expense:updated", onExpenseUpdated);
+    socket.on("expense:deleted", onExpenseDeleted);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("expense:created", onExpenseCreated);
+      socket.off("expense:updated", onExpenseUpdated);
+      socket.off("expense:deleted", onExpenseDeleted);
+      leaveGroupRoom(xgid);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, xgid]);
 
   // ── Overlay visibility ──
   const [createOpen, setCreateOpen] = useState(false);
@@ -2736,6 +3225,232 @@ export default function App() {
     }
   }
 
+  // ── Expense groups ──
+  // Mirrors the Groups/Wishlists state blocks above rather than sharing
+  // their handlers — same reasoning as Wishlists already not reusing
+  // Groups' create/edit/leave/delete state: each resource's mutations are
+  // only a handful of lines, and keeping them separate avoids threading a
+  // "which kind of group" branch through every one of them.
+  const [xgCreateOpen, setXgCreateOpen] = useState(false);
+  const [xgName, setXgName] = useState("");
+  const [xgEmoji, setXgEmoji] = useState("💰");
+  const [xgCurrency, setXgCurrency] = useState("USD");
+  const [xgCreating, setXgCreating] = useState(false);
+
+  async function doCreateExpenseGroup() {
+    const name = xgName.trim();
+    if (!name) return;
+    if (!currentUser) { notify(t("toast.sessionMissing")); return; }
+    setXgCreating(true);
+    try {
+      const g = await apiCreateExpenseGroup(name, xgEmoji, xgCurrency);
+      const mapped = mapExpenseGroup(g, currentUser.id);
+      setExpenseGroups(gs => [...gs, mapped]);
+      setXgName(""); setXgEmoji("💰"); setXgCurrency("USD"); setXgCreateOpen(false);
+      navigate(`/expense-groups/${mapped.id}`);
+      notify(t("toast.created", { name }));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotCreateGroup"));
+    } finally {
+      setXgCreating(false);
+    }
+  }
+
+  const [xgJoinOpen, setXgJoinOpen] = useState(false);
+  const [xgJoinCode, setXgJoinCode] = useState("");
+  const [xgJoinStatus, setXgJoinStatus] = useState<JoinStatus>("idle");
+  const [xgJoinErr, setXgJoinErr] = useState("");
+
+  function resetJoinExpenseGroup() { setXgJoinCode(""); setXgJoinStatus("idle"); setXgJoinErr(""); }
+
+  async function doJoinExpenseGroup() {
+    const code = xgJoinCode.trim().toUpperCase();
+    if (!code) return;
+    if (!currentUser) { notify(t("toast.sessionMissing")); return; }
+    setXgJoinStatus("loading");
+    try {
+      const g = await apiJoinExpenseGroup(code);
+      setExpenseGroups(gs => [...gs, mapExpenseGroup(g, currentUser.id)]);
+      setXgJoinStatus("success");
+      setTimeout(() => {
+        setXgJoinOpen(false); resetJoinExpenseGroup();
+        notify(t("toast.joined", { name: g.name }));
+      }, 1200);
+    } catch (e) {
+      setXgJoinStatus("error");
+      setXgJoinErr(e instanceof ApiError ? e.message : t("toast.invalidCode"));
+    }
+  }
+
+  const [xgEditOpen, setXgEditOpen] = useState(false);
+  const [xgeName, setXgeName] = useState("");
+  const [xgeEmoji, setXgeEmoji] = useState("💰");
+  const [xgeCurrency, setXgeCurrency] = useState("USD");
+  const [xgeSaving, setXgeSaving] = useState(false);
+
+  function openEditExpenseGroup() {
+    if (!cxg) return;
+    setXgeName(cxg.name);
+    setXgeEmoji(cxg.emoji);
+    setXgeCurrency(cxg.defaultCurrency);
+    setXgEditOpen(true);
+  }
+
+  async function doEditExpenseGroup() {
+    const name = xgeName.trim();
+    if (!xgid || !name) return;
+    setXgeSaving(true);
+    try {
+      const g = await apiUpdateExpenseGroup(xgid, { name, emoji: xgeEmoji, defaultCurrency: xgeCurrency });
+      setExpenseGroups(gs => gs.map(x => x.id !== xgid ? x : { ...x, name: g.name, emoji: g.emoji, defaultCurrency: g.defaultCurrency }));
+      setXgEditOpen(false);
+      notify(t("toast.groupUpdated"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotUpdateGroup"));
+    } finally {
+      setXgeSaving(false);
+    }
+  }
+
+  async function regenExpenseGroupCode() {
+    if (!xgid) return;
+    try {
+      const { inviteCode } = await apiRegenerateExpenseGroupInvite(xgid);
+      setExpenseGroups(gs => gs.map(g => g.id !== xgid ? g : { ...g, inviteCode }));
+      notify(t("toast.newCodeGenerated"));
+    } catch {
+      notify(t("toast.couldNotGenerateCode"));
+    }
+  }
+
+  const [xgRemoveTarget, setXgRemoveTarget] = useState<Member | null>(null);
+
+  async function confirmRemoveExpenseGroupMember() {
+    if (!xgid || !xgRemoveTarget) return;
+    const target = xgRemoveTarget;
+    try {
+      await apiRemoveExpenseGroupMember(xgid, target.id);
+      setExpenseGroups(gs => gs.map(g => g.id !== xgid ? g : { ...g, members: g.members.filter(m => m.id !== target.id) }));
+      notify(t("toast.removed", { name: target.name }));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotRemoveMember"));
+    } finally {
+      setXgRemoveTarget(null);
+    }
+  }
+
+  const [xgLeaveOpen, setXgLeaveOpen] = useState(false);
+
+  async function leaveExpenseGroupFn() {
+    if (!xgid) return;
+    try {
+      await apiLeaveExpenseGroup(xgid);
+      setExpenseGroups(gs => gs.filter(g => g.id !== xgid));
+      notify(t("toast.leftGroup"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotLeaveGroup"));
+    } finally {
+      setXgLeaveOpen(false);
+      navigate("/expense-groups", { replace: true });
+    }
+  }
+
+  const [xgDeleteOpen, setXgDeleteOpen] = useState(false);
+
+  async function doDeleteExpenseGroup() {
+    if (!xgid) return;
+    try {
+      await apiDeleteExpenseGroup(xgid);
+      setExpenseGroups(gs => gs.filter(g => g.id !== xgid));
+      notify(t("toast.groupDeleted"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotDeleteGroup"));
+    } finally {
+      setXgDeleteOpen(false);
+      navigate("/expense-groups", { replace: true });
+    }
+  }
+
+  // ── Add / edit / delete expense ──
+  // One sheet + one set of fields serves both add and edit — editingExpenseId
+  // null means "add", set means "edit that expense" (mirrors how the group
+  // create/edit sheets already share styling but not state; here the form
+  // itself is identical between the two modes, so it's the state that's shared).
+  const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [aeDescription, setAeDescription] = useState("");
+  const [aeAmount, setAeAmount] = useState("");
+  const [aeCurrency, setAeCurrency] = useState("USD");
+  const [aePaidById, setAePaidById] = useState("");
+  const [aeParticipantIds, setAeParticipantIds] = useState<string[]>([]);
+  const [aeSaving, setAeSaving] = useState(false);
+
+  function openAddExpense() {
+    if (!cxg || !currentUser) return;
+    setEditingExpenseId(null);
+    setAeDescription("");
+    setAeAmount("");
+    setAeCurrency(cxg.defaultCurrency);
+    setAePaidById(currentUser.id);
+    setAeParticipantIds(cxg.members.map(m => m.id));
+    setAddExpenseOpen(true);
+  }
+
+  function openEditExpense(expense: ExpenseVM) {
+    setEditingExpenseId(expense.id);
+    setAeDescription(expense.description);
+    setAeAmount(String(expense.amount));
+    setAeCurrency(expense.currency);
+    setAePaidById(expense.paidById);
+    setAeParticipantIds(expense.splits.map(s => s.userId));
+    setAddExpenseOpen(true);
+  }
+
+  function toggleExpenseParticipant(userId: string) {
+    setAeParticipantIds(ids => ids.includes(userId) ? ids.filter(id => id !== userId) : [...ids, userId]);
+  }
+
+  async function doSaveExpense() {
+    const description = aeDescription.trim();
+    const amount = Number(aeAmount);
+    if (!xgid || !description || !Number.isFinite(amount) || amount <= 0 || !aePaidById || aeParticipantIds.length === 0) return;
+    setAeSaving(true);
+    try {
+      if (editingExpenseId) {
+        await apiUpdateExpense(xgid, editingExpenseId, {
+          description, amount, currency: aeCurrency, paidById: aePaidById, participantIds: aeParticipantIds,
+        });
+      } else {
+        await apiAddExpense(xgid, {
+          description, amount, currency: aeCurrency, paidById: aePaidById, participantIds: aeParticipantIds,
+        });
+      }
+      if (currentUser) await refreshExpenseGroups(currentUser.id);
+      setAddExpenseOpen(false);
+      notify(editingExpenseId ? t("toast.expenseUpdated") : t("toast.expenseAdded"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t(editingExpenseId ? "toast.couldNotUpdateExpense" : "toast.couldNotAddExpense"));
+    } finally {
+      setAeSaving(false);
+    }
+  }
+
+  const [deleteExpenseTarget, setDeleteExpenseTarget] = useState<ExpenseVM | null>(null);
+
+  async function confirmDeleteExpense() {
+    if (!xgid || !deleteExpenseTarget) return;
+    const target = deleteExpenseTarget;
+    try {
+      await apiDeleteExpense(xgid, target.id);
+      setExpenseGroups(gs => gs.map(g => g.id !== xgid ? g : { ...g, expenses: g.expenses.filter(e => e.id !== target.id) }));
+      notify(t("toast.expenseDeleted"));
+    } catch (e) {
+      notify(e instanceof ApiError ? e.message : t("toast.couldNotDeleteExpense"));
+    } finally {
+      setDeleteExpenseTarget(null);
+    }
+  }
+
   // ── Lists ──
   const [addListOpen, setAddListOpen] = useState(false);
   const [addListGroupId, setAddListGroupId] = useState<string | null>(null);
@@ -2857,7 +3572,9 @@ export default function App() {
   // press is expected to behave.
   const anyModalOpen = createOpen || joinOpen || editGroupOpen || addListOpen || addBonusCardOpen
     || leaveOpen || deleteGroupOpen || logoutOpen || !!removeTarget || !!deleteListTarget
-    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen || !!updateInfo;
+    || wCreateOpen || wShareOpen || wEditOpen || wRegenConfirmOpen || wDeleteOpen || !!updateInfo
+    || xgCreateOpen || xgJoinOpen || xgEditOpen || xgLeaveOpen || xgDeleteOpen || !!xgRemoveTarget
+    || addExpenseOpen || !!deleteExpenseTarget;
 
   function closeAllModals() {
     setCreateOpen(false);
@@ -2875,6 +3592,14 @@ export default function App() {
     setWEditOpen(false);
     setWRegenConfirmOpen(false);
     setWDeleteOpen(false);
+    setXgCreateOpen(false);
+    setXgJoinOpen(false);
+    setXgEditOpen(false);
+    setXgLeaveOpen(false);
+    setXgDeleteOpen(false);
+    setXgRemoveTarget(null);
+    setAddExpenseOpen(false);
+    setDeleteExpenseTarget(null);
     dismissUpdatePrompt();
   }
 
@@ -3256,6 +3981,7 @@ export default function App() {
     setCurrentUser(null);
     setGroups([]);
     setWishlists([]);
+    setExpenseGroups([]);
     navigate("/login", { replace: true });
     routedInitialScreen.current = false;
     runBootstrap();
@@ -3394,14 +4120,55 @@ export default function App() {
                       onDelete={() => setDeleteGroupOpen(true)}
                     />
                   )}
+                  {screen === "expenseGroups" && (
+                    <ExpenseGroupsScreen
+                      groups={expenseGroups}
+                      onOpen={id => navigate(`/expense-groups/${id}`)}
+                      onCreate={() => setXgCreateOpen(true)}
+                      onJoin={() => setXgJoinOpen(true)}
+                    />
+                  )}
+                  {screen === "expenseGroup" && cxg && (
+                    <ExpenseGroupScreen
+                      group={cxg} onBack={back}
+                      onSettings={() => navigate(`/expense-groups/${xgid}/settings`)}
+                      onAddExpense={openAddExpense}
+                      onEditExpense={openEditExpense}
+                      onDeleteExpense={setDeleteExpenseTarget}
+                    />
+                  )}
+                  {screen === "expenseGroupMembers" && cxg && (
+                    <MembersScreen
+                      group={cxg} isAdmin={!!isExpenseGroupAdmin} onBack={back}
+                      onRemove={m => setXgRemoveTarget(m)}
+                    />
+                  )}
+                  {screen === "expenseGroupInvite" && cxg && (
+                    <InviteScreen group={cxg} onBack={back} onNewCode={regenExpenseGroupCode} />
+                  )}
+                  {screen === "expenseGroupSettings" && cxg && (
+                    <SettingsScreen
+                      group={cxg} isAdmin={!!isExpenseGroupAdmin} onBack={back}
+                      onEdit={openEditExpenseGroup}
+                      onMembers={() => navigate(`/expense-groups/${xgid}/members`)}
+                      onInvite={() => navigate(`/expense-groups/${xgid}/invite`)}
+                      onLeave={() => setXgLeaveOpen(true)}
+                      onDelete={() => setXgDeleteOpen(true)}
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
               </PullToRefresh>
 
               {showTabBar && (
                 <BottomNav
-                  active={screen === "profile" ? "profile" : screen === "wishlists" ? "wishlists" : "groups"}
-                  onChange={tab => navigate(`/${tab}`)}
+                  active={
+                    screen === "profile" ? "profile"
+                    : screen === "wishlists" ? "wishlists"
+                    : screen === "expenseGroups" ? "expenseGroups"
+                    : "groups"
+                  }
+                  onChange={tab => navigate(tab === "expenseGroups" ? "/expense-groups" : `/${tab}`)}
                 />
               )}
 
@@ -3709,6 +4476,193 @@ export default function App() {
                 </div>
               </Sheet>
 
+              <Sheet open={xgCreateOpen} onClose={() => setXgCreateOpen(false)} title={t("sheets.createExpenseGroup.title")}>
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("common.chooseIcon")}</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {EXPENSE_EMOJIS.map(e => (
+                        <button
+                          key={e} onClick={() => setXgEmoji(e)}
+                          className={`h-12 rounded-xl flex items-center justify-center text-2xl transition-all ${
+                            xgEmoji === e
+                              ? "bg-primary/15 border-2 border-primary scale-[1.05]"
+                              : "bg-muted border-2 border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Field
+                    label={t("sheets.createExpenseGroup.nameLabel")}
+                    placeholder={t("sheets.createExpenseGroup.namePlaceholder")}
+                    value={xgName}
+                    onChange={e => setXgName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doCreateExpenseGroup()}
+                    autoFocus
+                  />
+                  <CurrencyField label={t("sheets.createExpenseGroup.currencyLabel")} value={xgCurrency} onChange={setXgCurrency} />
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setXgCreateOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn variant="primary" full onClick={doCreateExpenseGroup} loading={xgCreating} disabled={!xgName.trim()}>{t("sheets.createExpenseGroup.submit")}</Btn>
+                  </div>
+                </div>
+              </Sheet>
+
+              <Sheet open={xgEditOpen} onClose={() => setXgEditOpen(false)} title={t("sheets.editExpenseGroup.title")}>
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("common.chooseIcon")}</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {EXPENSE_EMOJIS.map(e => (
+                        <button
+                          key={e} onClick={() => setXgeEmoji(e)}
+                          className={`h-12 rounded-xl flex items-center justify-center text-2xl transition-all ${
+                            xgeEmoji === e
+                              ? "bg-primary/15 border-2 border-primary scale-[1.05]"
+                              : "bg-muted border-2 border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Field
+                    label={t("sheets.editExpenseGroup.nameLabel")}
+                    placeholder={t("sheets.editExpenseGroup.namePlaceholder")}
+                    value={xgeName}
+                    onChange={e => setXgeName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && doEditExpenseGroup()}
+                    autoFocus
+                  />
+                  <CurrencyField label={t("sheets.editExpenseGroup.currencyLabel")} value={xgeCurrency} onChange={setXgeCurrency} />
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setXgEditOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn variant="primary" full onClick={doEditExpenseGroup} loading={xgeSaving} disabled={!xgeName.trim()}>{t("sheets.editExpenseGroup.submit")}</Btn>
+                  </div>
+                </div>
+              </Sheet>
+
+              <Sheet open={xgJoinOpen} onClose={() => { setXgJoinOpen(false); resetJoinExpenseGroup(); }} title={t("sheets.joinExpenseGroup.title")}>
+                <div className="space-y-5">
+                  {xgJoinStatus !== "success" ? (
+                    <>
+                      <Field
+                        label={t("sheets.joinGroup.codeLabel")}
+                        placeholder={t("sheets.joinGroup.codePlaceholder")}
+                        value={xgJoinCode}
+                        onChange={e => { setXgJoinCode(e.target.value.toUpperCase()); setXgJoinStatus("idle"); setXgJoinErr(""); }}
+                        onKeyDown={e => e.key === "Enter" && doJoinExpenseGroup()}
+                        error={xgJoinErr || undefined}
+                        autoFocus
+                        style={{ letterSpacing: "0.12em", fontFamily: "'DM Mono', monospace", textTransform: "uppercase" }}
+                      />
+                      <div className="flex gap-3">
+                        <Btn variant="outline" full onClick={() => { setXgJoinOpen(false); resetJoinExpenseGroup(); }}>{t("common.cancel")}</Btn>
+                        <Btn variant="primary" full onClick={doJoinExpenseGroup} loading={xgJoinStatus === "loading"} disabled={!xgJoinCode.trim()}>
+                          {t("sheets.joinGroup.submit")}
+                        </Btn>
+                      </div>
+                    </>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
+                      className="flex flex-col items-center gap-4 py-8"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                        <CheckCircle2 className="w-9 h-9 text-emerald-500" />
+                      </div>
+                      <div className="text-center">
+                        <p className="font-bold text-foreground text-lg">{t("sheets.joinGroup.joinedTitle")}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{t("sheets.joinGroup.joinedBody")}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </Sheet>
+
+              <Sheet
+                open={addExpenseOpen} onClose={() => setAddExpenseOpen(false)}
+                title={editingExpenseId ? t("sheets.editExpense.title") : t("sheets.addExpense.title")}
+              >
+                <div className="space-y-5">
+                  <Field
+                    label={t("sheets.addExpense.descriptionLabel")}
+                    placeholder={t("sheets.addExpense.descriptionPlaceholder")}
+                    value={aeDescription}
+                    onChange={e => setAeDescription(e.target.value)}
+                    autoFocus
+                  />
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <Field
+                        label={t("sheets.addExpense.amountLabel")}
+                        placeholder="0"
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={aeAmount}
+                        onChange={e => setAeAmount(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <CurrencyField label={t("sheets.addExpense.currencyLabel")} value={aeCurrency} onChange={setAeCurrency} />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.addExpense.paidByLabel")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {cxg?.members.map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setAePaidById(m.id)}
+                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
+                            aePaidById === m.id
+                              ? "bg-primary/15 border-primary"
+                              : "bg-muted border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          <Avatar m={m} size="xs" />
+                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.addExpense.splitBetweenLabel")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {cxg?.members.map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => toggleExpenseParticipant(m.id)}
+                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
+                            aeParticipantIds.includes(m.id)
+                              ? "bg-primary/15 border-primary"
+                              : "bg-muted border-transparent hover:bg-muted/80"
+                          }`}
+                        >
+                          <Avatar m={m} size="xs" />
+                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Btn variant="outline" full onClick={() => setAddExpenseOpen(false)}>{t("common.cancel")}</Btn>
+                    <Btn
+                      variant="primary" full onClick={doSaveExpense} loading={aeSaving}
+                      disabled={!aeDescription.trim() || !(Number(aeAmount) > 0) || !aePaidById || aeParticipantIds.length === 0}
+                    >
+                      {editingExpenseId ? t("common.save") : t("sheets.addExpense.submit")}
+                    </Btn>
+                  </div>
+                </div>
+              </Sheet>
+
               <Confirm
                 open={leaveOpen} onClose={() => setLeaveOpen(false)}
                 title={t("confirm.leaveGroup.title")}
@@ -3749,6 +4703,34 @@ export default function App() {
                 title={t("confirm.deleteWishlist.title")}
                 body={t("confirm.deleteWishlist.body", { name: cw?.name })}
                 cta={t("confirm.deleteWishlist.cta")} danger onConfirm={doDeleteWishlist}
+              />
+
+              <Confirm
+                open={xgLeaveOpen} onClose={() => setXgLeaveOpen(false)}
+                title={t("confirm.leaveGroup.title")}
+                body={t("confirm.leaveGroup.body", { name: cxg?.name })}
+                cta={t("confirm.leaveGroup.cta")} danger onConfirm={leaveExpenseGroupFn}
+              />
+
+              <Confirm
+                open={xgDeleteOpen} onClose={() => setXgDeleteOpen(false)}
+                title={t("confirm.deleteExpenseGroup.title")}
+                body={t("confirm.deleteExpenseGroup.body", { name: cxg?.name })}
+                cta={t("confirm.deleteExpenseGroup.cta")} danger onConfirm={doDeleteExpenseGroup}
+              />
+
+              <Confirm
+                open={!!xgRemoveTarget} onClose={() => setXgRemoveTarget(null)}
+                title={t("confirm.removeExpenseGroupMember.title")}
+                body={t("confirm.removeExpenseGroupMember.body", { memberName: xgRemoveTarget?.name, groupName: cxg?.name })}
+                cta={t("confirm.removeExpenseGroupMember.cta")} danger onConfirm={confirmRemoveExpenseGroupMember}
+              />
+
+              <Confirm
+                open={!!deleteExpenseTarget} onClose={() => setDeleteExpenseTarget(null)}
+                title={t("confirm.deleteExpense.title")}
+                body={t("confirm.deleteExpense.body", { description: deleteExpenseTarget?.description })}
+                cta={t("confirm.deleteExpense.cta")} danger onConfirm={confirmDeleteExpense}
               />
 
               <Confirm

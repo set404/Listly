@@ -6,7 +6,7 @@ import { Btn, Field } from "./ui-kit";
 import { register, storeTokens, ApiError, type ApiUser } from "../lib/api";
 
 export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
-  onBack: () => void; onSuccess: (user: ApiUser) => void; onGoLogin: () => void;
+  onBack: () => void; onSuccess: (user: ApiUser) => void | Promise<void>; onGoLogin: () => void;
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState("");
@@ -26,7 +26,7 @@ export function RegisterScreen({ onBack, onSuccess, onGoLogin }: {
     try {
       const { user, tokens } = await register(email.trim(), password, name.trim());
       storeTokens(tokens);
-      onSuccess(user);
+      await onSuccess(user);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("auth.genericError"));
     } finally {

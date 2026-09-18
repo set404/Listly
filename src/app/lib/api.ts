@@ -75,6 +75,33 @@ export interface ApiPublicWishlist {
   list: ApiList | null;
 }
 
+export interface ApiExpenseSplit {
+  userId: string;
+  amount: number;
+}
+
+export interface ApiExpense {
+  id: string;
+  description: string;
+  amount: number;
+  currency: string;
+  paidById: string;
+  createdAt: string;
+  createdById: string | null;
+  splits: ApiExpenseSplit[];
+}
+
+export interface ApiExpenseGroup {
+  id: string;
+  name: string;
+  emoji: string;
+  inviteCode: string;
+  defaultCurrency: string;
+  myRole: GroupRole;
+  members: ApiMember[];
+  expenses: ApiExpense[];
+}
+
 interface TokenPair {
   accessToken: string;
   refreshToken: string;
@@ -388,4 +415,83 @@ export function regenerateWishlistShareLink(wishlistId: string) {
 // signed out, and the server route ignores it entirely either way.
 export function getPublicWishlist(shareToken: string) {
   return apiFetch<ApiPublicWishlist>(`/wishlists/public/${shareToken}`);
+}
+
+// ─── Expense groups ─────────────────────────────────────────────────────────
+
+export function listExpenseGroups() {
+  return apiFetch<ApiExpenseGroup[]>("/expense-groups");
+}
+
+export function createExpenseGroup(name: string, emoji: string, defaultCurrency?: string) {
+  return apiFetch<ApiExpenseGroup>("/expense-groups", {
+    method: "POST",
+    body: JSON.stringify({ name, emoji, defaultCurrency }),
+  });
+}
+
+export function joinExpenseGroup(inviteCode: string) {
+  return apiFetch<ApiExpenseGroup>("/expense-groups/join", {
+    method: "POST",
+    body: JSON.stringify({ inviteCode }),
+  });
+}
+
+export function getExpenseGroup(groupId: string) {
+  return apiFetch<ApiExpenseGroup>(`/expense-groups/${groupId}`);
+}
+
+export function updateExpenseGroup(
+  groupId: string,
+  changes: { name?: string; emoji?: string; defaultCurrency?: string },
+) {
+  return apiFetch<ApiExpenseGroup>(`/expense-groups/${groupId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+export function deleteExpenseGroup(groupId: string) {
+  return apiFetch<void>(`/expense-groups/${groupId}`, { method: "DELETE" });
+}
+
+export function leaveExpenseGroup(groupId: string) {
+  return apiFetch<void>(`/expense-groups/${groupId}/leave`, { method: "DELETE" });
+}
+
+export function listExpenseGroupMembers(groupId: string) {
+  return apiFetch<ApiMember[]>(`/expense-groups/${groupId}/members`);
+}
+
+export function removeExpenseGroupMember(groupId: string, userId: string) {
+  return apiFetch<void>(`/expense-groups/${groupId}/members/${userId}`, { method: "DELETE" });
+}
+
+export function regenerateExpenseGroupInvite(groupId: string) {
+  return apiFetch<{ inviteCode: string }>(`/expense-groups/${groupId}/invite/regenerate`, { method: "POST" });
+}
+
+export function addExpense(
+  groupId: string,
+  input: { description: string; amount: number; currency?: string; paidById: string; participantIds: string[] },
+) {
+  return apiFetch<ApiExpense>(`/expense-groups/${groupId}/expenses`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateExpense(
+  groupId: string,
+  expenseId: string,
+  changes: { description?: string; amount?: number; currency?: string; paidById?: string; participantIds?: string[] },
+) {
+  return apiFetch<ApiExpense>(`/expense-groups/${groupId}/expenses/${expenseId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+export function deleteExpense(groupId: string, expenseId: string) {
+  return apiFetch<void>(`/expense-groups/${groupId}/expenses/${expenseId}`, { method: "DELETE" });
 }

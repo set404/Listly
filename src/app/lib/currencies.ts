@@ -1,9 +1,6 @@
 // Keep in sync with Listly-BE's src/lib/validation.ts CURRENCY_CODES —
 // there's no shared package between the two apps, so this list is duplicated.
-export const CURRENCIES = [
-  "USD", "EUR", "GBP", "AMD", "RUB", "GEL", "TRY", "UAH",
-  "CNY", "JPY", "CAD", "AUD", "CHF", "INR", "AED",
-] as const;
+export const CURRENCIES = ["USD", "EUR", "AMD"] as const;
 
 export type CurrencyCode = (typeof CURRENCIES)[number];
 
@@ -11,11 +8,9 @@ export type CurrencyCode = (typeof CURRENCIES)[number];
 // ISO code) under locales where CLDR defines one — e.g. AMD only gets "֏"
 // under "hy", and still falls back to "AMD" under "en". Since the app's UI
 // language shouldn't change how a currency itself is written, these are
-// hardcoded instead of going through Intl. CHF and AED have no
-// single-character symbol in common use, so they keep their code.
+// hardcoded instead of going through Intl.
 const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: "$", EUR: "€", GBP: "£", AMD: "֏", RUB: "₽", GEL: "₾", TRY: "₺",
-  UAH: "₴", CNY: "CN¥", JPY: "¥", CAD: "CA$", AUD: "A$", INR: "₹",
+  USD: "$", EUR: "€", AMD: "֏",
 };
 
 // The bare currency symbol (e.g. "$", "€", "֏") for compact UI like the

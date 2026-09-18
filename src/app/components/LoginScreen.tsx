@@ -7,7 +7,7 @@ import { login, loginWithGoogle, storeTokens, ApiError, type ApiUser } from "../
 import { signInWithGoogle } from "../lib/googleAuth";
 
 export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, onContinueAsGuest, guestLoading }: {
-  showBack?: boolean; onBack: () => void; onSuccess: (user: ApiUser) => void; onGoRegister: () => void;
+  showBack?: boolean; onBack: () => void; onSuccess: (user: ApiUser) => void | Promise<void>; onGoRegister: () => void;
   onContinueAsGuest: () => void; guestLoading?: boolean;
 }) {
   const { t } = useTranslation();
@@ -26,7 +26,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
     try {
       const { user, tokens } = await login(email.trim(), password);
       storeTokens(tokens);
-      onSuccess(user);
+      await onSuccess(user);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("auth.genericError"));
     } finally {
@@ -41,7 +41,7 @@ export function LoginScreen({ showBack = true, onBack, onSuccess, onGoRegister, 
       const idToken = await signInWithGoogle();
       const { user, tokens } = await loginWithGoogle(idToken);
       storeTokens(tokens);
-      onSuccess(user);
+      await onSuccess(user);
     } catch (e) {
       setGoogleError(e instanceof ApiError || e instanceof Error ? e.message : t("auth.googleError"));
     } finally {

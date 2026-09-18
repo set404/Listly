@@ -1,7 +1,7 @@
 import { GoogleSignIn } from "@capawesome/capacitor-google-sign-in";
 import { Capacitor } from "@capacitor/core";
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 // On Web the plugin can't use a native account picker — it redirects the
 // whole page to Google and back. `redirectUrl` must be registered as an

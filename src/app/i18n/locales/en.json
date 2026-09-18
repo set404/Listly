@@ -9,6 +9,7 @@
     "share": "Share",
     "or": "or",
     "you": "You",
+    "someone": "Someone",
     "tryAgain": "Try again",
     "processing": "Processing…",
     "choosePhoto": "Choose a photo",
@@ -19,6 +20,7 @@
   },
   "nav": {
     "groups": "Groups",
+    "expenses": "Expenses",
     "wishlists": "Wishlists",
     "profile": "Profile"
   },
@@ -95,6 +97,28 @@
     "emptyTitle": "No wishlists yet",
     "emptyBody": "Create one and share it as a read-only link.",
     "createWishlist": "Create wishlist"
+  },
+  "expenseGroups": {
+    "title": "Expenses",
+    "join": "Join a group",
+    "emptyTitle": "No expense groups yet",
+    "emptyBody": "Create one to start splitting costs with others.",
+    "createGroup": "Create group",
+    "noExpensesYet": "No expenses yet",
+    "settledUp": "Settled up",
+    "youAreOwed": "You're owed {{amount}}",
+    "youOwe": "You owe {{amount}}"
+  },
+  "expenseGroupScreen": {
+    "paidBy": "Paid by {{name}}",
+    "editExpenseAria": "Edit {{description}}",
+    "deleteExpenseAria": "Delete {{description}}",
+    "youAreSettledUp": "You're all settled up",
+    "youAreOwedTotal": "You're owed {{amount}} overall",
+    "youOweTotal": "You owe {{amount}} overall",
+    "settledUp": "Settled up",
+    "empty": "No expenses yet — add the first one below.",
+    "addExpense": "Add expense"
   },
   "listCard": {
     "deleteAria": "Delete {{name}}"
@@ -235,6 +259,36 @@
       "namePlaceholder": "e.g. Loyalty card, Coupon…",
       "imageLabel": "Image",
       "submit": "Add card"
+    },
+    "createExpenseGroup": {
+      "title": "Create an expense group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. Roommates, Trip to Tbilisi…",
+      "currencyLabel": "Default currency",
+      "submit": "Create group"
+    },
+    "editExpenseGroup": {
+      "title": "Edit expense group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. Roommates, Trip to Tbilisi…",
+      "currencyLabel": "Default currency",
+      "submit": "Save"
+    },
+    "joinExpenseGroup": {
+      "title": "Join an expense group"
+    },
+    "addExpense": {
+      "title": "Add an expense",
+      "descriptionLabel": "What was it for?",
+      "descriptionPlaceholder": "e.g. Groceries, Dinner…",
+      "amountLabel": "Amount",
+      "currencyLabel": "Currency",
+      "paidByLabel": "Paid by",
+      "splitBetweenLabel": "Split between",
+      "submit": "Add expense"
+    },
+    "editExpense": {
+      "title": "Edit expense"
     }
   },
   "confirm": {
@@ -267,6 +321,21 @@
       "title": "Delete wishlist?",
       "body": "\"{{name}}\" and all of its items will be permanently deleted. Anyone with the share link will lose access.",
       "cta": "Delete wishlist"
+    },
+    "deleteExpenseGroup": {
+      "title": "Delete group?",
+      "body": "\"{{name}}\" will be permanently deleted for everyone, along with all of its logged expenses.",
+      "cta": "Delete group"
+    },
+    "removeExpenseGroupMember": {
+      "title": "Remove member?",
+      "body": "{{memberName}} will lose access to \"{{groupName}}\" and its expenses.",
+      "cta": "Remove"
+    },
+    "deleteExpense": {
+      "title": "Delete expense?",
+      "body": "\"{{description}}\" will be permanently deleted and balances recalculated.",
+      "cta": "Delete expense"
     },
     "signOut": {
       "title": "Sign out?",
@@ -318,6 +387,15 @@
     "couldNotGenerateCode": "Couldn't generate a new code.",
     "linkCopied": "Link copied!",
     "couldNotStartGuest": "Couldn't start a guest session. Try again.",
-    "couldNotRestoreSession": "Couldn't restore your session. Try again."
+    "couldNotRestoreSession": "Couldn't restore your session. Try again.",
+    "expenseAdded": "Expense added!",
+    "couldNotAddExpense": "Couldn't add that expense.",
+    "expenseUpdated": "Expense updated!",
+    "couldNotUpdateExpense": "Couldn't update that expense.",
+    "expenseDeleted": "Expense deleted.",
+    "couldNotDeleteExpense": "Couldn't delete that expense.",
+    "expenseAddedLive": "{{name}} added \"{{description}}\"",
+    "expenseUpdatedLive": "{{name}} updated \"{{description}}\"",
+    "expenseDeletedLive": "{{name}} deleted an expense"
   }
 }

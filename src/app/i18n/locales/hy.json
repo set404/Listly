@@ -9,6 +9,7 @@
     "share": "Կիսվել",
     "or": "կամ",
     "you": "Դուք",
+    "someone": "Ինչ-որ մեկը",
     "tryAgain": "Կրկին փորձել",
     "processing": "Մշակվում է…",
     "choosePhoto": "Ընտրել լուսանկար",
@@ -19,6 +20,7 @@
   },
   "nav": {
     "groups": "Խմբեր",
+    "expenses": "Ծախսեր",
     "wishlists": "Ցանկեր",
     "profile": "Պրոֆիլ"
   },
@@ -95,6 +97,28 @@
     "emptyTitle": "Առայժմ ցանկեր չկան",
     "emptyBody": "Ստեղծեք մեկը և կիսվեք միայն դիտման հղումով։",
     "createWishlist": "Ստեղծել ցանկ"
+  },
+  "expenseGroups": {
+    "title": "Ծախսեր",
+    "join": "Միանալ խմբին",
+    "emptyTitle": "Առայժմ ծախսերի խմբեր չկան",
+    "emptyBody": "Ստեղծեք մեկը՝ ուրիշների հետ ծախսերը կիսելու համար։",
+    "createGroup": "Ստեղծել խումբ",
+    "noExpensesYet": "Առայժմ ծախսեր չկան",
+    "settledUp": "Հաշվարկված է",
+    "youAreOwed": "Ձեզ պարտք են {{amount}}",
+    "youOwe": "Դուք պարտք եք {{amount}}"
+  },
+  "expenseGroupScreen": {
+    "paidBy": "Վճարել է {{name}}",
+    "editExpenseAria": "Խմբագրել {{description}}",
+    "deleteExpenseAria": "Ջնջել {{description}}",
+    "youAreSettledUp": "Ձեր հաշիվը մաքուր է",
+    "youAreOwedTotal": "Ընդհանուր առմամբ ձեզ պարտք են {{amount}}",
+    "youOweTotal": "Ընդհանուր առմամբ դուք պարտք եք {{amount}}",
+    "settledUp": "Հաշվարկված է",
+    "empty": "Առայժմ ծախսեր չկան — ավելացրեք առաջինը ներքևում։",
+    "addExpense": "Ավելացնել ծախս"
   },
   "listCard": {
     "deleteAria": "Ջնջել {{name}}"
@@ -235,6 +259,36 @@
       "namePlaceholder": "Օրինակ՝ Հավատարմության քարտ, Կտրոն…",
       "imageLabel": "Նկար",
       "submit": "Ավելացնել քարտ"
+    },
+    "createExpenseGroup": {
+      "title": "Ստեղծել ծախսերի խումբ",
+      "nameLabel": "Խմբի անուն",
+      "namePlaceholder": "Օրինակ՝ Համատարածք, Ուղևորություն…",
+      "currencyLabel": "Հիմնական արժույթ",
+      "submit": "Ստեղծել խումբ"
+    },
+    "editExpenseGroup": {
+      "title": "Խմբագրել ծախսերի խումբը",
+      "nameLabel": "Խմբի անուն",
+      "namePlaceholder": "Օրինակ՝ Համատարածք, Ուղևորություն…",
+      "currencyLabel": "Հիմնական արժույթ",
+      "submit": "Պահպանել"
+    },
+    "joinExpenseGroup": {
+      "title": "Միանալ ծախսերի խմբին"
+    },
+    "addExpense": {
+      "title": "Ավելացնել ծախս",
+      "descriptionLabel": "Ինչի՞ համար էր",
+      "descriptionPlaceholder": "Օրինակ՝ Մթերք, Ընթրիք…",
+      "amountLabel": "Գումար",
+      "currencyLabel": "Արժույթ",
+      "paidByLabel": "Վճարել է",
+      "splitBetweenLabel": "Բաժանել",
+      "submit": "Ավելացնել ծախս"
+    },
+    "editExpense": {
+      "title": "Խմբագրել ծախսը"
     }
   },
   "confirm": {
@@ -267,6 +321,21 @@
       "title": "Ջնջե՞լ ցանկը",
       "body": "«{{name}}»-ը և դրա բոլոր ապրանքները վերջնականապես կջնջվեն։ Ցանկացած մեկը, ով ունի հղումը, կկորցնի հասանելիությունը։",
       "cta": "Ջնջել ցանկը"
+    },
+    "deleteExpenseGroup": {
+      "title": "Ջնջե՞լ խումբը",
+      "body": "«{{name}}»-ը վերջնականապես կջնջվի բոլորի համար՝ իր բոլոր գրանցված ծախսերի հետ միասին։",
+      "cta": "Ջնջել խումբը"
+    },
+    "removeExpenseGroupMember": {
+      "title": "Հեռացնե՞լ անդամին",
+      "body": "{{memberName}}-ը կկորցնի հասանելիությունը «{{groupName}}»-ին և դրա ծախսերին։",
+      "cta": "Հեռացնել"
+    },
+    "deleteExpense": {
+      "title": "Ջնջե՞լ ծախսը",
+      "body": "«{{description}}»-ը վերջնականապես կջնջվի և հաշվեկշիռները կվերահաշվարկվեն։",
+      "cta": "Ջնջել ծախսը"
     },
     "signOut": {
       "title": "Դուրս գա՞լ",
@@ -318,6 +387,15 @@
     "couldNotGenerateCode": "Չհաջողվեց ստեղծել նոր կոդ։",
     "linkCopied": "Հղումը պատճենվեց!",
     "couldNotStartGuest": "Չհաջողվեց սկսել հյուրի աշխատաշրջան։ Փորձեք կրկին։",
-    "couldNotRestoreSession": "Չհաջողվեց վերականգնել ձեր աշխատաշրջանը։ Փորձեք կրկին։"
+    "couldNotRestoreSession": "Չհաջողվեց վերականգնել ձեր աշխատաշրջանը։ Փորձեք կրկին։",
+    "expenseAdded": "Ծախսն ավելացվեց!",
+    "couldNotAddExpense": "Չհաջողվեց ավելացնել ծախսը։",
+    "expenseUpdated": "Ծախսը թարմացվեց!",
+    "couldNotUpdateExpense": "Չհաջողվեց թարմացնել ծախսը։",
+    "expenseDeleted": "Ծախսը ջնջվեց։",
+    "couldNotDeleteExpense": "Չհաջողվեց ջնջել ծախսը։",
+    "expenseAddedLive": "{{name}}-ն ավելացրեց «{{description}}»",
+    "expenseUpdatedLive": "{{name}}-ը թարմացրեց «{{description}}»",
+    "expenseDeletedLive": "{{name}}-ը ջնջեց մի ծախս"
   }
 }

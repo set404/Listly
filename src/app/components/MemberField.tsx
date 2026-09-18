@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { Avatar, type Member } from "./ui-kit";
@@ -7,6 +8,14 @@ import { Avatar, type Member } from "./ui-kit";
 // whether it fits below the trigger or needs to open upward.
 const POPOVER_HEIGHT_ESTIMATE = 224;
 
+interface PopoverPlacement {
+  left: number;
+  width: number;
+  top?: number;
+  bottom?: number;
+  openUpward: boolean;
+}
+
 // Single-select member dropdown (e.g. "Paid by") — same popover styling as
 // CurrencyField, sized to sit next to another field in a row instead of a
 // full-width wrapping pill grid.
@@ -14,23 +23,44 @@ export function MemberField({ label, members, value, onChange }: {
   label: string; members: Member[]; value: string; onChange: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
+  const [placement, setPlacement] = useState<PopoverPlacement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
     }
+    // The popover is portaled out to document.body and positioned via
+    // getBoundingClientRect() at open time — if the sheet behind it
+    // scrolls, that position goes stale (a position:fixed portal doesn't
+    // move with a scrolling ancestor the way an absolutely-positioned one
+    // nested inside it would), so just close it rather than let it drift.
+    function onScrollOrResize() { setOpen(false); }
     document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
   }, [open]);
 
   function toggleOpen() {
     if (!open && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenUpward(spaceBelow < POPOVER_HEIGHT_ESTIMATE && rect.top > spaceBelow);
+      const openUpward = spaceBelow < POPOVER_HEIGHT_ESTIMATE && rect.top > spaceBelow;
+      setPlacement({
+        left: rect.left,
+        width: rect.width,
+        openUpward,
+        ...(openUpward ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
+      });
     }
     setOpen(o => !o);
   }
@@ -50,16 +80,18 @@ export function MemberField({ label, members, value, onChange }: {
           <span className="flex-1 min-w-0 text-left text-sm font-medium truncate">{selected?.name ?? ""}</span>
           <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
         </button>
+      </div>
+      {createPortal(
         <AnimatePresence>
-          {open && (
+          {open && placement && (
             <motion.div
-              initial={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
+              ref={popoverRef}
+              initial={{ opacity: 0, y: placement.openUpward ? 4 : -4, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
+              exit={{ opacity: 0, y: placement.openUpward ? 4 : -4, scale: 0.98 }}
               transition={{ duration: 0.12 }}
-              className={`absolute left-0 right-0 z-20 max-h-56 overflow-y-auto bg-card border border-border rounded-2xl shadow-lg py-1 ${
-                openUpward ? "bottom-full mb-1.5" : "top-full mt-1.5"
-              }`}
+              style={{ position: "fixed", left: placement.left, width: placement.width, top: placement.top, bottom: placement.bottom }}
+              className="z-[100] max-h-56 overflow-y-auto bg-card border border-border rounded-2xl shadow-lg py-1"
             >
               {members.map(m => (
                 <button
@@ -76,8 +108,9 @@ export function MemberField({ label, members, value, onChange }: {
               ))}
             </motion.div>
           )}
-        </AnimatePresence>
-      </div>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

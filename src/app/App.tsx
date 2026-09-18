@@ -2395,7 +2395,7 @@ export default function App() {
                         onChange={e => setAeAmount(e.target.value)}
                       />
                     </div>
-                    <div className="w-24 flex-shrink-0">
+                    <div className="w-28 flex-shrink-0">
                       <CurrencyField label={t("sheets.addExpense.currencyLabel")} value={aeCurrency} onChange={setAeCurrency} />
                     </div>
                   </div>
@@ -2426,8 +2426,8 @@ export default function App() {
               </Sheet>
 
               <Sheet open={settleUpOpen} onClose={() => setSettleUpOpen(false)} title={t("sheets.settleUp.title")}>
-                <div className="space-y-5">
-                  <div className="flex gap-3 items-end">
+                <div className="space-y-4">
+                  <div className="flex gap-3">
                     <div className="flex-1">
                       <Field
                         label={t("sheets.settleUp.amountLabel")}
@@ -2441,47 +2441,23 @@ export default function App() {
                         autoFocus
                       />
                     </div>
-                  </div>
-                  <CurrencyField label={t("sheets.settleUp.currencyLabel")} value={suCurrency} onChange={setSuCurrency} />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.settleUp.fromLabel")}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {cxg?.members.map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setSuFromUserId(m.id)}
-                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
-                            suFromUserId === m.id
-                              ? "bg-primary/15 border-primary"
-                              : "bg-muted border-transparent hover:bg-muted/80"
-                          }`}
-                        >
-                          <Avatar m={m} size="xs" />
-                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
-                        </button>
-                      ))}
+                    <div className="w-28 flex-shrink-0">
+                      <CurrencyField label={t("sheets.settleUp.currencyLabel")} value={suCurrency} onChange={setSuCurrency} />
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.settleUp.toLabel")}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {cxg?.members.filter(m => m.id !== suFromUserId).map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setSuToUserId(m.id)}
-                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
-                            suToUserId === m.id
-                              ? "bg-primary/15 border-primary"
-                              : "bg-muted border-transparent hover:bg-muted/80"
-                          }`}
-                        >
-                          <Avatar m={m} size="xs" />
-                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                  <div className="flex gap-3">
+                    <MemberField
+                      label={t("sheets.settleUp.fromLabel")}
+                      members={cxg?.members ?? []}
+                      value={suFromUserId}
+                      onChange={setSuFromUserId}
+                    />
+                    <MemberField
+                      label={t("sheets.settleUp.toLabel")}
+                      members={cxg?.members.filter(m => m.id !== suFromUserId) ?? []}
+                      value={suToUserId}
+                      onChange={setSuToUserId}
+                    />
                   </div>
                   <div className="flex gap-3">
                     <Btn variant="outline" full onClick={() => setSettleUpOpen(false)}>{t("common.cancel")}</Btn>

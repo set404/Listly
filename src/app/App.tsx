@@ -1813,7 +1813,8 @@ export default function App() {
                       onGoLogin={() => navigate("/login")}
                     />
                   )}
-                  {screen === "groups" && (
+                  {screen === "groups" && !groupsListLoaded && <ScreenLoading />}
+                  {screen === "groups" && groupsListLoaded && (
                     <Groups
                       groups={groups}
                       onOpen={id => navigate(`/groups/${id}`)}
@@ -1823,7 +1824,8 @@ export default function App() {
                       onJoin={() => setJoinOpen(true)}
                     />
                   )}
-                  {screen === "wishlists" && (
+                  {screen === "wishlists" && !wishlistsListLoaded && <ScreenLoading />}
+                  {screen === "wishlists" && wishlistsListLoaded && (
                     <WishlistsScreen
                       wishlists={wishlists}
                       onOpen={id => navigate(`/wishlists/${id}`)}
@@ -1885,6 +1887,7 @@ export default function App() {
                       enablePrice onSetPrice={setItemPrice}
                     />
                   )}
+                  {(screen === "members" || screen === "invite" || screen === "settings") && !cg && <ScreenLoading />}
                   {screen === "members" && cg && (
                     <MembersScreen
                       group={cg} isAdmin={isAdmin} onBack={back}
@@ -1901,7 +1904,8 @@ export default function App() {
                       onDelete={() => setDeleteGroupOpen(true)}
                     />
                   )}
-                  {screen === "expenseGroups" && (
+                  {screen === "expenseGroups" && !expenseGroupsListLoaded && <ScreenLoading />}
+                  {screen === "expenseGroups" && expenseGroupsListLoaded && (
                     <ExpenseGroupsScreen
                       groups={expenseGroups}
                       onOpen={id => navigate(`/expense-groups/${id}`)}
@@ -1921,6 +1925,7 @@ export default function App() {
                       onDeleteSettlement={setDeleteSettlementTarget}
                     />
                   )}
+                  {(screen === "expenseGroupMembers" || screen === "expenseGroupInvite" || screen === "expenseGroupSettings") && !cxg && <ScreenLoading />}
                   {screen === "expenseGroupMembers" && cxg && (
                     <MembersScreen
                       group={cxg} isAdmin={!!isExpenseGroupAdmin} onBack={back}

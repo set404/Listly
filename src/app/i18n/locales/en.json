@@ -288,6 +288,7 @@
       "currencyLabel": "Currency",
       "paidByLabel": "Paid by",
       "splitBetweenLabel": "Split between",
+      "everyone": "Everyone",
       "submit": "Add expense"
     },
     "editExpense": {

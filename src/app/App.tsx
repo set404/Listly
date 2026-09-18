@@ -338,6 +338,152 @@ function CurrencyPicker({ value, onChange, className = "" }: {
   );
 }
 
+// Single-select member dropdown (e.g. "Paid by") — same popover styling as
+// CurrencyField, sized to sit next to another field in a row instead of a
+// full-width wrapping pill grid.
+function MemberField({ label, members, value, onChange }: {
+  label: string; members: Member[]; value: string; onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  const selected = members.find(m => m.id === value);
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      <label className="text-sm font-semibold text-foreground">{label}</label>
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-muted/80 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all border border-transparent"
+        >
+          {selected && <Avatar m={selected} size="xs" />}
+          <span className="flex-1 min-w-0 text-left text-sm font-medium truncate">{selected?.name ?? ""}</span>
+          <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className="absolute left-0 right-0 top-full mt-1.5 z-20 max-h-56 overflow-y-auto bg-card border border-border rounded-2xl shadow-lg py-1"
+            >
+              {members.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { onChange(m.id); setOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 text-left px-3 py-2.5 text-sm font-medium transition-colors ${
+                    m.id === value ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Avatar m={m} size="xs" />
+                  <span className="truncate">{m.name}</span>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+// Multi-select member dropdown (e.g. "Split between") — same shape as
+// MemberField, but selecting toggles membership instead of closing the
+// popover, and the closed button summarizes the selection as an avatar
+// stack plus a count instead of a single name.
+function MemberMultiField({ label, members, value, onChange }: {
+  label: string; members: Member[]; value: string[]; onChange: (ids: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  function toggle(id: string) {
+    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
+  }
+
+  const selectedMembers = members.filter(m => value.includes(m.id));
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      <label className="text-sm font-semibold text-foreground">{label}</label>
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-muted/80 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all border border-transparent"
+        >
+          <div className="flex -space-x-1.5 flex-shrink-0">
+            {selectedMembers.slice(0, 3).map(m => (
+              <div key={m.id} className="ring-2 ring-muted rounded-full">
+                <Avatar m={m} size="xs" />
+              </div>
+            ))}
+          </div>
+          <span className="flex-1 min-w-0 text-left text-sm font-medium truncate">
+            {selectedMembers.length === members.length && members.length > 0
+              ? t("sheets.addExpense.everyone")
+              : t("settings.peopleCount", { count: selectedMembers.length })}
+          </span>
+          <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className="absolute left-0 right-0 top-full mt-1.5 z-20 max-h-56 overflow-y-auto bg-card border border-border rounded-2xl shadow-lg py-1"
+            >
+              {members.map(m => {
+                const checked = value.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggle(m.id)}
+                    className={`w-full flex items-center gap-2.5 text-left px-3 py-2.5 text-sm font-medium transition-colors ${
+                      checked ? "text-primary bg-primary/10" : "text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <Avatar m={m} size="xs" />
+                    <span className="flex-1 truncate">{m.name}</span>
+                    {checked && <Check className="w-4 h-4 flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
 // The native app's WebView serves local assets from https://localhost, not
 // a real address anyone else can open — a share link built from
 // window.location there would be useless. Use the deployed web app's
@@ -3516,10 +3662,6 @@ export default function App() {
     setAddExpenseOpen(true);
   }
 
-  function toggleExpenseParticipant(userId: string) {
-    setAeParticipantIds(ids => ids.includes(userId) ? ids.filter(id => id !== userId) : [...ids, userId]);
-  }
-
   async function doSaveExpense() {
     const description = aeDescription.trim();
     const amount = Number(aeAmount);
@@ -4753,7 +4895,7 @@ export default function App() {
                 open={addExpenseOpen} onClose={() => setAddExpenseOpen(false)}
                 title={editingExpenseId ? t("sheets.editExpense.title") : t("sheets.addExpense.title")}
               >
-                <div className="space-y-5">
+                <div className="space-y-4">
                   <Field
                     label={t("sheets.addExpense.descriptionLabel")}
                     placeholder={t("sheets.addExpense.descriptionPlaceholder")}
@@ -4761,7 +4903,7 @@ export default function App() {
                     onChange={e => setAeDescription(e.target.value)}
                     autoFocus
                   />
-                  <div className="flex gap-3 items-end">
+                  <div className="flex gap-3">
                     <div className="flex-1">
                       <Field
                         label={t("sheets.addExpense.amountLabel")}
@@ -4774,47 +4916,23 @@ export default function App() {
                         onChange={e => setAeAmount(e.target.value)}
                       />
                     </div>
-                  </div>
-                  <CurrencyField label={t("sheets.addExpense.currencyLabel")} value={aeCurrency} onChange={setAeCurrency} />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.addExpense.paidByLabel")}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {cxg?.members.map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setAePaidById(m.id)}
-                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
-                            aePaidById === m.id
-                              ? "bg-primary/15 border-primary"
-                              : "bg-muted border-transparent hover:bg-muted/80"
-                          }`}
-                        >
-                          <Avatar m={m} size="xs" />
-                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
-                        </button>
-                      ))}
+                    <div className="w-24 flex-shrink-0">
+                      <CurrencyField label={t("sheets.addExpense.currencyLabel")} value={aeCurrency} onChange={setAeCurrency} />
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground mb-3">{t("sheets.addExpense.splitBetweenLabel")}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {cxg?.members.map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => toggleExpenseParticipant(m.id)}
-                          className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border-2 transition-all ${
-                            aeParticipantIds.includes(m.id)
-                              ? "bg-primary/15 border-primary"
-                              : "bg-muted border-transparent hover:bg-muted/80"
-                          }`}
-                        >
-                          <Avatar m={m} size="xs" />
-                          <span className="text-xs font-semibold text-foreground">{m.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                  <div className="flex gap-3">
+                    <MemberField
+                      label={t("sheets.addExpense.paidByLabel")}
+                      members={cxg?.members ?? []}
+                      value={aePaidById}
+                      onChange={setAePaidById}
+                    />
+                    <MemberMultiField
+                      label={t("sheets.addExpense.splitBetweenLabel")}
+                      members={cxg?.members ?? []}
+                      value={aeParticipantIds}
+                      onChange={setAeParticipantIds}
+                    />
                   </div>
                   <div className="flex gap-3">
                     <Btn variant="outline" full onClick={() => setAddExpenseOpen(false)}>{t("common.cancel")}</Btn>
